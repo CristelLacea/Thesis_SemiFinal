@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weljo's System | Cashier</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="cashier.css">
+</head>
+<body>
+    <div class="pos-container">
+
+        <main class="product-selection" style="flex: 2; padding: 25px; background: #f8fafc; display: flex; flex-direction: column; gap: 20px; height: 100vh; overflow: hidden;">
+            
+<!-- Add autofocus and make sure it is not readonly -->
+<input type="text" id="scannerFocus" autofocus 
+       style="opacity: 0; position: fixed; top: 0; left: 0; z-index: -1;">            <div class="search-header" style="position: relative; width: 100%;">
+                <label style="font-weight: 700; color: #64748b; font-size: 0.85rem; text-transform: uppercase; display: block; margin-bottom: 8px;">
+                    <i class="fa-solid fa-magnifying-glass"></i> Search Fallback (If scan fails)
+                </label>
+                <input type="text" placeholder="Type product name here..." id="searchProduct" oninput="liveCashierSearch(this.value)" autocomplete="off"
+                       style="width: 100%; padding: 15px; border-radius: 12px; border: 1px solid #cbd5e1; font-size: 1rem; outline: none; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
+                
+                <div id="cashierDropdownResults" style="display: none; position: absolute; top: 100%; left: 0; width: 100%; background: white; border: 1px solid #cbd5e1; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.08); z-index: 1000; max-height: 250px; overflow-y: auto; margin-top: 5px;"></div>
+            </div>
+
+            <div class="order-list" id="orderList" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column;">
+                </div>
+        </main>
+
+        <aside class="order-summary" style="width: 400px; padding: 25px; background: white; border-left: 1px solid #e2e8f0; display: flex; flex-direction: column; justify-content: center;">
+            <h3 style="margin-bottom: 15px; color: #1d2b38; font-weight: 800;">Billing Overview</h3>
+            
+            <div class="billing-area">
+                <div class="bill-line total">
+                    <span>Total Amount</span>
+                    <span id="totalPrice">₱0.00</span>
+                </div>
+                
+                <div class="payment-section">
+                    <div class="payment-input">
+                        <label>Cash Received:</label>
+<!-- Added 'readonly' and 'onfocus' to blur immediately if clicked -->
+<input type="text" id="cashReceived" placeholder="0.00" readonly onfocus="this.blur()">
+</div>
+
+                    <div class="numpad">
+                        <button onclick="pressNum('7')">7</button>
+                        <button onclick="pressNum('8')">8</button>
+                        <button onclick="pressNum('9')">9</button>
+                        <button onclick="pressNum('4')">4</button>
+                        <button onclick="pressNum('5')">5</button>
+                        <button onclick="pressNum('6')">6</button>
+                        <button onclick="pressNum('1')">1</button>
+                        <button onclick="pressNum('2')">2</button>
+                        <button onclick="pressNum('3')">3</button>
+                        <button onclick="pressNum('0')">0</button>
+                        <button onclick="pressNum('.')">.</button>
+                        <button class="clear-btn" onclick="pressNum('C')">C</button>
+                    </div>
+                </div>
+
+                <div class="bill-line change-row">
+                    <span>Change:</span>
+                    <span id="changeAmount" class="large-change">₱0.00</span>
+                </div>
+                <button class="confirm-btn" onclick="processTransaction()">Confirm Transaction</button>
+            </div>
+        </aside>
+    </div>
+    <script src="cashier.js"></script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+node_modules/
+weljo_server/node_modules/
+.env
+weljo_server/.env
+*.docx
+*.sql
+*.xlsx
+*.pdf
+*.zip
+*.rar

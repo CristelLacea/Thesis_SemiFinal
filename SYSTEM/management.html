@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WELJO System | Management</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="management.css">
+</head>
+<body>
+    <div class="mgmt-wrapper">
+        <nav class="side-nav">
+            <div class="brand">WELJO'S Store</div>
+            <div class="nav-links">
+                <button class="nav-btn active" onclick="showSection('dashboard-overview')">
+                    <i class="fa-solid fa-gauge-high"></i> Overview
+                </button>
+                <button class="nav-btn" onclick="showSection('statistics-section')">
+                    <i class="fa-solid fa-chart-line"></i> Statistics
+                </button>
+                <button class="nav-btn" onclick="showSection('history-section')">
+                    <i class="fa-solid fa-clock-rotate-left"></i> History
+                </button>
+                <button class="nav-btn" onclick="showSection('inventory-section')">
+                    <i class="fa-solid fa-box-open"></i> Products
+                </button>
+                <div class="nav-btn" onclick="showSection('utang-section')">
+    <i class="fa-solid fa-book"></i> Credit Ledger  
+</div>
+<button class="nav-btn" onclick="showSection('user-management-section')">
+    <i class="fa-solid fa-users-gear"></i> User Management
+</button>
+
+            </div>
+            <div class="user-control">
+                <span><i class="fa-solid fa-user-gear"></i> Admin</span>
+                <a href="dashboard.html" class="nav-lock"><i class="fa-solid fa-arrow-left"></i> Back</a>
+            </div>
+            
+        </nav>
+
+        <main class="main-content">
+            <header class="top-header">
+                <h2>Management Panel</h2>
+                <div class="header-actions">
+                    <span id="currentTime"></span>
+                </div>
+            </header>
+            
+
+            <section id="dashboard-overview" class="content-section active">
+                <div class="stats-row">
+                    <div class="stat-card products">
+                        <div class="stat-icon"><i class="fa-solid fa-boxes-stacked"></i></div>
+                        <div class="stat-info">
+                            <h3>Total Products</h3>
+                            <p id="totalProducts">0</p>
+                        </div>
+                    </div>
+                    <div class="stat-card stock">
+                        <div class="stat-icon"><i class="fa-solid fa-warehouse"></i></div>
+                        <div class="stat-info">
+                            <h3>Total Stock</h3>
+                            <p id="totalStock">0</p>
+                        </div>
+                    </div>
+                    <div class="stat-card warning">
+                        <div class="stat-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                        <div class="stat-info">
+                            <h3>Low Stock</h3>
+                            <p id="lowStockCount">0</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="overview-grid">
+                    <div class="chart-box">
+                        <div class="chart-header">
+                            <h3>Performance Trends</h3>
+                            <div class="range-controls">
+                                <input type="date" id="chartBaseDate" class="chart-datepicker" onchange="handleChartDateChange(this.value)">
+
+                                <button class="range-btn" onclick="updateChartRange('today')">Today</button>
+                                <button class="range-btn active" onclick="updateChartRange('weekly')">Weekly</button>
+                                <button class="range-btn" onclick="updateChartRange('monthly')">Monthly</button>
+                                <button class="range-btn" onclick="updateChartRange('yearly')">Yearly</button>
+                            </div>
+                        </div>
+                        <div class="canvas-wrapper">
+                            <canvas id="salesChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="alerts-sidebar">
+                        <div class="restock-container">
+                            <h3>⚠️ Needs Restock</h3>
+                            <ul id="restockList"></ul>
+                        </div>
+                        <div class="expiry-container">
+                            <h3>⏰ Near Expiry</h3>
+                            <ul id="expiryList"></ul>
+                        </div>
+
+                        <div class="expired-container">
+        <h3>❌ Expired Items</h3>
+        <ul id="expiredList"></ul>
+    </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="statistics-section" class="content-section">
+    <!-- Master Statistics Toolbar Dashboard Filters -->
+    <div class="stats-toolbar" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid #e2e8f0;">
+        <div>
+            <h2 class="section-title" style="font-weight: 800; color: #1d2b38; margin: 0;">Sales & Profit Analytics</h2>
+            <p style="font-size: 0.85rem; color: #64748b; margin: 4px 0 0 0;">Real-time business performance matrices and transactional lifecycle trackers.</p>
+        </div>
+        <div class="report-controls" style="display: flex; gap: 15px; align-items: center;">
+            <div class="btn-group" style="background: #f1f5f9; padding: 4px; border-radius: 8px; display: flex; gap: 4px;">
+                <button class="range-btn active" id="btnStatsDay" onclick="setStatPeriod('day')" style="padding: 6px 16px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.85rem; background: #1d2b38; color: white;">Day</button>
+                <button class="range-btn" id="btnStatsWeek" onclick="setStatPeriod('week')" style="padding: 6px 16px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.85rem; background: transparent; color: #64748b;">Week</button>
+                <button class="range-btn" id="btnStatsMonth" onclick="setStatPeriod('month')" style="padding: 6px 16px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.85rem; background: transparent; color: #64748b;">Month</button>
+                <button class="range-btn" id="btnStatsYear" onclick="setStatPeriod('year')" style="padding: 6px 16px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.85rem; background: transparent; color: #64748b;">Year</button>
+            </div>
+            <div class="date-input-wrapper" style="display: flex; align-items: center; gap: 8px;">
+                <label style="font-weight: 600; font-size: 0.85rem; color: #475569;">Target Date:</label>
+                <input type="date" id="statsMasterDate" onchange="loadStatsEngine()" style="padding: 8px 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-weight: 600; color: #1e293b; outline: none; background: white;">
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary Metrics Card Matrix -->
+    <div class="stats-metric-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 30px;">
+        <div class="metric-mini-card" style="background: linear-gradient(135deg, #eff6ff, #dbeafe); border: 1px solid #bfdbfe; padding: 18px; border-radius: 14px; display: flex; align-items: center; gap: 12px;">
+            <div style="background: #3b82f6; color: white; width: 42px; height: 42px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem;"><i class="fa-solid fa-cash-register"></i></div>
+            <div>
+                <span style="font-size: 0.7rem; font-weight: 700; color: #1e3a8a; text-transform: uppercase; letter-spacing: 0.5px;">Gross Revenue</span>
+                <p id="salesReport" style="font-size: 1.4rem; font-weight: 900; color: #1e293b; margin: 2px 0;">₱0.00</p>
+            </div>
+        </div>
+        <div class="metric-mini-card" style="background: linear-gradient(135deg, #ecfdf5, #d1fae5); border: 1px solid #a7f3d0; padding: 18px; border-radius: 14px; display: flex; align-items: center; gap: 12px;">
+            <div style="background: #10b981; color: white; width: 42px; height: 42px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem;"><i class="fa-solid fa-hand-holding-dollar"></i></div>
+            <div>
+                <span style="font-size: 0.7rem; font-weight: 700; color: #064e3b; text-transform: uppercase; letter-spacing: 0.5px;">Net Profit</span>
+                <p id="profitReport" style="font-size: 1.4rem; font-weight: 900; color: #1e293b; margin: 2px 0;">₱0.00</p>
+            </div>
+        </div>
+        <div class="metric-mini-card" style="background: linear-gradient(135deg, #f5f3ff, #ede9fe); border: 1px solid #ddd6fe; padding: 18px; border-radius: 14px; display: flex; align-items: center; gap: 12px;">
+            <div style="background: #7c3aed; color: white; width: 42px; height: 42px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem;"><i class="fa-solid fa-boxes-stacked"></i></div>
+            <div>
+                <span style="font-size: 0.7rem; font-weight: 700; color: #4c1d95; text-transform: uppercase; letter-spacing: 0.5px;">Units Dispatched</span>
+                <p id="totalVolumeReport" style="font-size: 1.4rem; font-weight: 900; color: #1e293b; margin: 2px 0;">0 units</p>
+            </div>
+        </div>
+        <div class="metric-mini-card" style="background: linear-gradient(135deg, #fffbeb, #fef3c7); border: 1px solid #fde68a; padding: 18px; border-radius: 14px; display: flex; align-items: center; gap: 12px;">
+            <div style="background: #d97706; color: white; width: 42px; height: 42px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem;"><i class="fa-solid fa-chart-pie"></i></div>
+            <div>
+                <span style="font-size: 0.7rem; font-weight: 700; color: #78350f; text-transform: uppercase; letter-spacing: 0.5px;">Profit Margin</span>
+                <p id="marginReport" style="font-size: 1.4rem; font-weight: 900; color: #1e293b; margin: 2px 0;">0.00%</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Split-Panel Main Layout Workplace Block -->
+    <div class="analytics-split-layout" style="display: grid; grid-template-columns: 1fr 1.7fr; gap: 25px; align-items: flex-start;">
+     
+        <div class="analytics-card-panel" style="background: white; border: 1px solid #e2e8f0; border-radius: 16px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.01);">
+            <h3 style="font-size: 1.1rem; color: #1e293b; margin-bottom: 15px; display: flex; align-items: center; gap: 10px;"><i class="fa-solid fa-trophy" style="color: #f59e0b;"></i> Top Selling Items</h3>
+            <ul class="top-items-list" id="topItemsList" style="list-style: none; padding: 0;"></ul>
+        </div>
+
+      
+        <div class="analytics-card-panel" style="background: white; border: 1px solid #e2e8f0; border-radius: 16px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.01);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h3 style="font-size: 1.1rem; color: #1e293b; margin: 0;"><i class="fa-solid fa-layer-group" style="color: #d97706;"></i> Item Sold Records</h3>
+                <input type="text" id="statTrackerSearch" placeholder="Filter breakdown..." oninput="loadStatsEngine()" style="padding: 8px 12px; border-radius: 8px; border: 1px solid #cbd5e1; width: 170px; font-size: 0.85rem; outline: none;">
+            </div>
+            <div id="categoryPerformanceAccordion"></div>
+        </div>
+    </div>
+
+<div class="category-stat-body ${searchTerm ? '' : 'collapsed-stats'}" style="padding:0 18px;">
+</section>
+
+           <section id="history-section" class="content-section">
+    <!-- Header Toolbar -->
+    <div class="stats-toolbar" style="margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid #e2e8f0;">
+        <h2 class="section-title" style="font-weight: 800; color: #1d2b38; margin: 0;">Store Audit & History</h2>
+        <p style="font-size: 0.85rem; color: #64748b; margin: 4px 0 0 0;">Select a ledger category to automatically view detailed management history streams.</p>
+    </div>
+    
+    <!-- 1. MAIN MENU HUB CONTAINER (Shows first) -->
+    <div id="historyHubMenu" class="history-hub-menu-grid">
+        <div class="hub-option-card" onclick="openHistorySubSection('transactions')">
+            <div class="hub-icon-wrapper" style="background: #eff6ff; color: #1d2b38;"><i class="fa-solid fa-receipt"></i></div>
+            <h3>Recent Transactions</h3>
+            <p>Instantly view itemized breakdowns of over-the-counter counter sales and debt collections.</p>
+            <span class="hub-action-tag">Open Records <i class="fa-solid fa-arrow-right"></i></span>
+        </div>
+
+        <div class="hub-option-card" onclick="openHistorySubSection('pricelogs')">
+            <div class="hub-icon-wrapper" style="background: #fff5f5; color: #ff7675;"><i class="fa-solid fa-tags"></i></div>
+            <h3>Price Change Logs</h3>
+            <p>Instantly track chronological markup modifications and historical retail adjustments.</p>
+            <span class="hub-action-tag" style="color: #ff7675;">Open Ledger <i class="fa-solid fa-arrow-right"></i></span>
+        </div>
+    </div>
+
+    <!-- 2. RECENT TRANSACTIONS VIEW PANEL -->
+    <div id="subPanelTransactions" class="history-detail-subpanel" style="display: none;">
+        <button onclick="backToHistoryHub()" class="back-folders-btn" style="margin-bottom: 15px;"><i class="fa-solid fa-arrow-left"></i> Back to Selection</button>
+        <div class="history-panel">
+            <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 2px solid #f1f5f9; margin-bottom: 15px;">
+                <h3 style="font-size: 1.2rem; color: #1e293b; margin: 0;"><i class="fa-solid fa-receipt" style="color: #1d2b38; margin-right: 8px;"></i> Transaction Records</h3>
+                <div class="inline-filter" style="display: flex; gap: 6px;">
+                    <input type="date" id="historyFilterDate" onchange="filterHistoryByDate(this.value)" style="padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; font-weight: 600; outline: none;">
+                    <button class="reset-btn" onclick="resetHistoryFilter()"><i class="fa-solid fa-rotate-left"></i></button>
+                </div>
+            </div>
+            <!-- Dedicated Scroll Container -->
+            <div id="transactionHistory" class="history-scroll-viewport"></div>
+        </div>
+    </div>
+
+    <!-- 3. PRICE CHANGE LOGS VIEW PANEL -->
+    <div id="subPanelPriceLogs" class="history-detail-subpanel" style="display: none;">
+        <button onclick="backToHistoryHub()" class="back-folders-btn" style="margin-bottom: 15px; color: #ff7675; border-color: #ff7675;"><i class="fa-solid fa-arrow-left"></i> Back to Selection</button>
+        <div class="history-panel">
+            <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 2px solid #f1f5f9; margin-bottom: 15px;">
+                <h3 style="font-size: 1.2rem; color: #1e293b; margin: 0;"><i class="fa-solid fa-tags" style="color: #ff7675; margin-right: 8px;"></i> Retail Price Logs</h3>
+                <div class="search-wrapper" style="width: 220px;">
+                    <input type="text" id="priceSearchInput" placeholder="Search item name..." oninput="renderPriceLog(null, this.value)" style="width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.85rem; outline: none;">
+                </div>
+            </div>
+            <!-- Dedicated Scroll Container -->
+            <div id="priceChangeLog" class="history-scroll-viewport"></div>
+        </div>
+    </div>
+</section>
+
+            <section id="inventory-section" class="content-section">
+    <!-- Header Toolbar Control Grid Row -->
+    <div class="stats-toolbar" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid #e2e8f0;">
+        <div>
+            <h2 class="section-title" style="font-weight: 800; color: #1d2b38; margin: 0;">Inventory Management</h2>
+            <p style="font-size: 0.85rem; color: #64748b; margin: 4px 0 0 0;">Browse itemized categorical stores, restock inventory levels, and manage global retail goods.</p>
+        </div>
+        <div class="table-controls" style="display: flex; gap: 12px; align-items: center;">
+            <!-- UPDATE THIS SPECIFIC BUTTON -->
+<button class="view-archive-btn" 
+        type="button" 
+        onclick="openArchiveModal(event)" 
+        style="background: #f59e0b; color: white; padding: 10px 16px; border-radius: 10px; border: none; cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.15);">
+    <i class="fa-solid fa-box-archive"></i> Archive Manager
+</button>
+            <button class="add-prod-btn" onclick="openModal()" style="background: #1d2b38; color: white; padding: 10px 18px; border-radius: 10px; border: none; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                <i class="fa-solid fa-plus"></i> Add Product
+            </button>
+        </div>
+    </div>
+    
+    <!-- 1. CATEGORY PORTAL HUB MENU (Shows first on layout landing) -->
+    <div id="productCategoryHub" class="product-hub-menu-grid">
+        <!-- Portals are injected dynamically by JavaScript with distinct colors and icons -->
+    </div>
+
+    <!-- 2. DETAILED CATEGORICAL DATA LOG SHEET CONTAINER -->
+    <div id="subPanelCategoryViewer" style="display: none; animation: fadeIn 0.3s ease forwards;">
+        <!-- Back Toggle Navigation Action Link Button Row -->
+        <button onclick="backToCategoryHub()" class="back-folders-btn" id="categoryHubBackButton" style="margin-bottom: 15px; background: white;">
+            <i class="fa-solid fa-arrow-left"></i> Back to Categories
+        </button>
+        
+        <div class="history-panel" style="background: white; padding: 24px; border-radius: 16px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; height: calc(100vh - 240px) !important;">
+            <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 2px solid #f1f5f9; margin-bottom: 15px;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div id="viewerCategoryIconBox" style="width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1rem; font-weight: bold;"></div>
+                    <h3 id="viewerCategoryTitle" style="font-size: 1.3rem; color: #0f172a; font-weight: 900; margin: 0; text-transform: uppercase; letter-spacing: -0.3px;"></h3>
+                </div>
+                <div class="search-wrapper" style="width: 260px;">
+                    <input type="text" placeholder="Search inside category..." id="inventorySearch" oninput="filterActiveCategoryItems(this.value)" style="width: 100%; padding: 8px 14px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.85rem; outline: none; font-weight: 500;">
+                </div>
+            </div>
+
+            <!-- Spreadsheet view with independent scroll viewports layout frame wrapper -->
+            <div style="flex: 1; overflow-y: auto; padding-right: 4px;">
+                <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                    <thead>
+                        <tr style="background: #f8fafc; border-bottom: 2px solid #edf2f7; color: #64748b; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.5px;">
+                            <th style="padding: 14px;">Image</th>
+                            <th style="padding: 14px;">Product Name</th>
+                            <th style="padding: 14px;">Original Price</th>
+                            <th style="padding: 14px;">Capital Mark</th>
+                            <th style="padding: 14px; font-weight: 800;">Retail Sale Price</th>
+                            <th style="padding: 14px; text-align: center;">Stock Qty</th>
+                            <th style="padding: 14px; text-align: center;"><i class="fa-solid fa-star" style="color:#64748b;"></i></th>
+                            <th style="padding: 14px; text-align: right;">Action Tools</th>
+                        </tr>
+                    </thead>
+                    <tbody id="inventoryBody">
+                        <!-- Categorized product items filtered rows loop injected here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</section>
+
+            <!-- Locate your utang-section -->
+<div id="utang-section" class="content-section" style="display:none;">
+    <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; border-bottom: 1px solid #f1f5f9; padding-bottom: 15px;">
+        <h2>Listahan ng Utang (Credit Ledger)</h2>
+        <div style="display: flex; gap: 10px;">
+            <button class="toggle-btn active" id="btnViewActiveFolders" onclick="switchFolderTab('ACTIVE')" style="padding: 10px 15px; font-weight: bold; border: 1px solid #cbd5e1; border-radius: 8px; cursor: pointer;">Active Debts</button>
+            <button class="toggle-btn" id="btnViewArchivedFolders" onclick="switchFolderTab('ARCHIVED')" style="padding: 10px 15px; font-weight: bold; border: 1px solid #cbd5e1; border-radius: 8px; cursor: pointer;">Archived Folders</button>
+            <button class="add-note-btn" onclick="openFolderModal()" style="margin: 0; background: #ff7675; color: white; padding: 12px 20px; border: none; border-radius: 10px; font-weight: 600; cursor: pointer;">+ Create New Ledger Folder</button>
+        </div>
+    </div>
+    
+    <div class="folder-grid" id="customerFolderList"></div> 
+    
+    <div id="specificCustomerView" style="display:none; background: #f8fafc; padding: 25px; border-radius: 15px; border: 1px solid #e2e8f0;">
+        <button onclick="backToFolders()" class="back-folders-btn"><i class="fa-solid fa-arrow-left"></i> Back to Folders</button>
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 id="currentFolderName" style="margin: 0; color: #1d2b38; font-weight: 800; font-size: 1.4rem;"></h3>
+            <button class="add-note-btn" onclick="openUtangModal()" style="background: #1d2b38; color: white; padding: 10px 20px; border: none; border-radius: 10px; font-weight: bold; cursor: pointer;">+ Add Item on Credit</button>
+        </div>
+
+        <div class="ledger-view-wrapper" style="display: flex; gap: 30px; align-items: flex-start; margin-top: 20px;">
+            
+            <div class="tickets-container" style="flex: 2; background: white; border-radius: 15px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
+                <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                    <thead>
+                        <tr style="background: #f8fafc; border-bottom: 2px solid #edf2f7; color: #64748b; font-size: 0.85rem; text-transform: uppercase;">
+                            <th style="padding: 15px;">Transaction Date</th>
+                            <th style="padding: 15px;">Description / Items Taken</th>
+                            <th style="padding: 15px; text-align: right;">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody id="specificUtangTableBody">
+                        </tbody>
+                </table>
+            </div>
+
+            <div class="debt-summary-panel" style="width: 380px; background: white; padding: 25px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border-top: 6px solid #ff7675; position: sticky; top: 20px;">
+                <h4 style="text-transform: uppercase; font-size: 0.8rem; color: #64748b; letter-spacing: 0.5px;"><i class="fa-solid fa-calculator"></i> Total Debt</h4>
+                <p id="customerDebtTotal" style="font-size: 3rem; font-weight: 900; color: #ff7675; margin: 15px 0;">₱0.00</p>
+                
+                <hr style="border: 0; border-top: 1px solid #f1f5f9; margin: 20px 0;">
+                
+                <div class="payment-collection-terminal" id="paymentInputTerminal" style="display: flex; flex-direction: column; gap: 12px;">
+                    <label style="font-weight: 700; color: #475569; font-size: 0.9rem;">Input Received Cash Payment:</label>
+                    <div style="position: relative; width: 100%;">
+                        <span style="position: absolute; left: 15px; top: 50%; transform: translateY(-50%); font-weight: bold; color: #64748b;">₱</span>
+                        <input type="number" id="ledgerPaymentInput" placeholder="0.00" step="0.01" min="0.01"
+                               style="width: 100%; padding: 12px 12px 12px 30px; border-radius: 10px; border: 1px solid #cbd5e1; font-size: 1.1rem; font-weight: bold; outline: none;">
+                    </div>
+                    <button class="full-pay-btn" onclick="submitLedgerPayment()" 
+                            style="width: 100%; background: #10b981; color: white; border: none; padding: 14px; border-radius: 10px; font-weight: 800; font-size: 1rem; cursor: pointer; transition: 0.2s;">
+                        Proceed Payment
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+ 
+
+    <div id="productModal" class="modal">
+        <div class="modal-content">
+            <h3>Product Details</h3>
+            <form id="productForm">
+                <div class="input-group">
+    <label><i class="fa-solid fa-barcode"></i> Barcode / Product ID</label>
+<input type="text" id="prodBarcode" 
+       placeholder="Scan or type barcode string..." 
+       onkeydown="if(event.key === 'Enter') event.preventDefault();">
+    </div>
+                <input type="text" id="prodName" placeholder="Product Name" required>
+                <select id="prodCat">
+                    <option value="chips">Chips</option>
+                    <option value="drinks">Drinks</option>
+                    <option value="biscuit">Biscuits</option>
+                    <option value="Candy">Candy</option>
+                    <option value="Cold Goods">Cold Goods</option>
+                    <option value="Home Goods">Home Goods</option>
+                    <option value="Hygiene">Hygiene</option>
+                    <option value="School Supplies">School Supplies</option>
+                </select>
+                <div class="input-row">
+                    <div><label>Original Price</label><input type="number" id="prodOrigPrice" step="0.01" required oninput="autoCalcSalePrice()"></div>
+                    <div><label>Capital</label><input type="number" id="prodCapital" step="0.01" required oninput="autoCalcSalePrice()"></div>
+                </div>
+                <div class="sale-price-display"><label>Auto-Calculated Sale Price:</label><span id="autoSalePrice">₱0.00</span></div>
+                <input type="number" id="prodStock" placeholder="Stock Quantity" required>
+                <div class="input-row">
+                    <div><label><i class="fa-solid fa-calendar-circle-exclamation"></i> Expiry Date</label><input type="date" id="prodExpiry"></div>
+                </div>
+                <input type="text" id="prodImg" placeholder="Image URL">
+                <div class="fav-toggle"><label>Favorite?</label><input type="checkbox" id="prodFav"></div>
+                <div class="modal-actions">
+                    <button type="button" class="cancel-btn" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="save-btn">Save Product</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="folderModal" class="modal-overlay">
+    <div class="modal-content">
+        <h3><i class="fa-solid fa-folder-plus"></i> Create Customer Folder</h3>
+        <form id="folderForm">
+            <div class="input-group">
+                <label>Customer Full Name:</label>
+                <input type="text" id="newCustomerName" placeholder="e.g., Rudmark" required>
+            </div>
+            <div class="input-group">
+                <label>Contact Number:</label>
+                <input type="text" id="newCustomerContact" placeholder="0912-345-6789" required>
+            </div>
+            <div class="input-group">
+    <label>Address:</label>
+    <input type="text" id="newCustomerAddress" placeholder="Balilihan, Bohol" required>
+</div>
+            <div class="modal-actions">
+                <button type="button" class="cancel-btn" onclick="closeFolderModal()">Cancel</button>
+                <button type="submit" class="save-btn">Create Folder</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+    <div id="utangModal" class="modal-overlay">
+    <div class="modal-content">
+        <h3>Add Smart Utang Note</h3>
+        <form id="utangForm">
+            <div class="input-group" id="customerNameGroup">
+                <label>Customer Name:</label>
+                <input type="text" id="utangCustomer" placeholder="e.g. Mang Kanor" required>
+            </div>
+
+            <p id="folderNameDisplay" style="display:none; margin-bottom: 15px; font-weight: bold; color: #6c5ce7; background: #f3f0ff; padding: 10px; border-radius: 8px;">
+                <i class="fa-solid fa-folder-open"></i> Adding to: <span id="targetCustomerName"></span>
+            </p>
+            
+            <div class="input-group">
+                <label>Search Product:</label>
+                <div class="search-wrapper" style="position: relative;">
+                    <input type="text" id="itemSearch" placeholder="Type to search..." oninput="searchProducts(this.value)">
+                    <div id="searchResults" class="search-results-dropdown" style="display: none;"></div>
+                </div>
+            </div>
+
+            <div id="selectedItemsList" class="selected-items-container" style="margin-top: 15px;"></div>
+
+            <div class="total-summary">
+                <strong>Total Amount: </strong>
+                <span id="utangDisplayTotal">₱0.00</span>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="cancel-btn" onclick="closeUtangModal()">Cancel</button>
+                <button type="submit" class="save-btn">Save to Ledger</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="globalAlert" class="modal-overlay" style="display:none; z-index: 20000; background: rgba(0,0,0,0.7);">
+    <div class="modal-content alert-box" style="background: white; border-radius: 15px; z-index: 20001;">
+        <div id="alertIcon" style="font-size: 3rem;"></div>
+        <h3 id="alertTitle"></h3>
+        <p id="alertMessage"></p>
+        <div id="alertActions"></div>
+    </div>
+</div>
+
+
+<!-- ARCHIVE MANAGER MODAL -->
+<div id="archiveModal" class="modal-overlay" style="display:none;">
+    <div class="modal-content" style="max-width: 500px; border-top: 5px solid #f59e0b;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="margin: 0;"><i class="fa-solid fa-box-archive"></i> Archived Products</h3>
+
+            <button type="button" onclick="closeArchiveModal()" style="background:none; border:none; font-size: 1.2rem; cursor:pointer;">&times;</button>
+        </div>
+        
+        <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 15px;">
+            These items are hidden from the inventory. Restoring them will make them visible again.
+        </p>
+
+        <div id="archivedListContainer" style="max-height: 350px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 10px;">
+            <!-- Content -->
+        </div>
+
+        <div class="modal-actions" style="margin-top: 20px;">
+            <button type="button" class="cancel-btn" onclick="closeArchiveModal()">Close</button>
+        </div>
+    </div> <!-- Ensure this closing div exists for modal-content -->
+</div> <!-- Ensure this closing div exists for archiveModal -->
+
+
+<section id="user-management-section" class="content-section">
+    <!-- STAFF MANAGEMENT PANEL -->
+    <div class="panel-card">
+        <div class="section-header">
+            <h2>Staff Management</h2>
+            <div style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+                <button class="add-note-btn" onclick="openUserModal()" style="margin: 0;">+ Add New Staff</button>
+                <button class="add-note-btn" onclick="openActivityLogsModal()" style="margin: 0; background: #d97706; border-color: #d97706;"><i class="fa-solid fa-clock-rotate-left"></i> View Activity Logs</button>
+                <label style="display: flex; align-items: center; gap: 8px; font-weight: 600; color: #475569; cursor: pointer; user-select: none; font-size: 0.95rem; background: #f1f5f9; padding: 8px 14px; border-radius: 10px; border: 1px solid #e2e8f0; transition: all 0.2s;">
+                    <input type="checkbox" id="showInactiveStaff" onchange="renderUserList()" style="width: 16px; height: 16px; cursor: pointer;">
+                    Show Inactive Staff
+                </label>
+            </div>
+        </div>
+        <div class="user-list-grid" id="userListContainer"></div>
+    </div>
+
+    <!-- VISIBLE SEPARATOR -->
+    <hr style="margin: 40px 0; border: 0; border-top: 2px solid #e2e8f0;">
+
+</section>
+
+<!-- Clean version of the modal content -->
+<div id="userModal" class="modal-overlay">
+    <div class="modal-content">
+        <h3><i class="fa-solid fa-user-plus"></i> Add New Staff</h3>
+        <form id="userForm">
+            <input type="text" id="uFname" placeholder="First Name" required>
+            <input type="text" id="uMi" placeholder="Middle Initial">
+            <input type="text" id="uLname" placeholder="Last Name" required>
+            <input type="email" id="uEmail" placeholder="System Generated Email" required readonly style="background: #f1f5f9; cursor: not-allowed; border: 1px solid #cbd5e1; color: #64748b; font-weight: 600;" title="This field is auto-generated by the system.">
+            <input type="text" id="uContact" placeholder="Contact Number" required>
+            <input type="text" id="uAddress" placeholder="Address" required>
+            <input type="password" id="uPass" placeholder="Password" required>
+            <input type="password" id="uConfirmPass" placeholder="Confirm Password" required>
+            
+            <select id="uRole">
+                <option value="Cashier">Cashier</option>
+                <option value="Admin">Admin</option>
+            </select>
+            
+            <div class="modal-actions">
+                <button type="button" class="cancel-btn" onclick="closeModalByName('userModal')">Cancel</button>
+                <button type="submit" class="save-btn">Create User</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="editUserModal" class="modal-overlay">
+    <div class="modal-content">
+        <h3>Edit Staff Details</h3>
+        <form id="editUserForm">
+            <input type="hidden" id="editUserId">
+            <input type="text" id="editFname" placeholder="First Name" required>
+            <input type="text" id="editMi" placeholder="Middle Initial">
+            <input type="text" id="editLname" placeholder="Last Name" required>
+            <input type="email" id="editEmail" placeholder="System Generated Email" required readonly style="background: #f1f5f9; cursor: not-allowed; border: 1px solid #cbd5e1; color: #64748b; font-weight: 600;" title="This field is auto-generated by the system.">
+            <input type="text" id="editContact" placeholder="Contact Number" required>
+            <input type="text" id="editAddress" placeholder="Address" required>
+            <select id="editRole">
+                <option value="Cashier">Cashier</option>
+                <option value="Admin">Admin</option>
+            </select>
+            <div class="modal-actions">
+                <button type="button" class="cancel-btn" onclick="closeModalByName('editUserModal')">Cancel</button>
+                <button type="submit" class="save-btn">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="activityLogsModal" class="modal-overlay" style="display: none; justify-content: center; align-items: center; z-index: 2000;">
+    <div class="modal-content" style="max-width: 800px; width: 90%; max-height: 85vh; display: flex; flex-direction: column; padding: 25px; border-radius: 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #e2e8f0; padding-bottom: 15px;">
+            <h3 style="margin: 0; font-size: 1.4rem; color: #1e293b;"><i class="fa-solid fa-clock-rotate-left" style="color: #d97706;"></i> Staff Activity Audit Logs</h3>
+            <button onclick="closeActivityLogsModal()" style="background: none; border: none; font-size: 1.8rem; cursor: pointer; color: #64748b; font-weight: 700; line-height: 1;">&times;</button>
+        </div>
+        
+        <!-- Filters Toolbar -->
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; background: #f8fafc; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0;">
+            <div style="flex: 1; min-width: 150px;">
+                <label style="display: block; font-size: 0.8rem; font-weight: 700; color: #475569; margin-bottom: 5px;">Filter by Staff Member</label>
+                <select id="logFilterEmail" onchange="fetchAndRenderActivityLogs()" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #cbd5e1; outline: none; font-size: 0.9rem; background: white;">
+                    <option value="">All Staff Members</option>
+                </select>
+            </div>
+            
+            <div style="flex: 1; min-width: 150px;">
+                <label style="display: block; font-size: 0.8rem; font-weight: 700; color: #475569; margin-bottom: 5px;">Filter by Action</label>
+                <select id="logFilterAction" onchange="fetchAndRenderActivityLogs()" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #cbd5e1; outline: none; font-size: 0.9rem; background: white;">
+                    <option value="">All Actions</option>
+                    <option value="Login">Login</option>
+                    <option value="Logout">Logout</option>
+                    <option value="Process Sale">Sales Processing</option>
+                    <option value="Add Product">Add Product</option>
+                    <option value="Update Product">Update Product</option>
+                    <option value="Archive Product">Archive Product</option>
+                    <option value="Restore Product">Restore Product</option>
+                    <option value="Create Staff">Create Staff Account</option>
+                    <option value="Update Staff Status">Deactivate/Reactivate</option>
+                    <option value="Record Debt (Utang)">Record Debt (Utang)</option>
+                    <option value="Record Debt Payment">Ledger Payments</option>
+                </select>
+            </div>
+            
+            <div style="flex: 1; min-width: 150px;">
+                <label style="display: block; font-size: 0.8rem; font-weight: 700; color: #475569; margin-bottom: 5px;">Filter by Date</label>
+                <input type="date" id="logFilterDate" onchange="fetchAndRenderActivityLogs()" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #cbd5e1; outline: none; font-size: 0.9rem; background: white; box-sizing: border-box; height: 38px;">
+            </div>
+            
+            <div style="display: flex; align-items: flex-end;">
+                <button onclick="resetActivityLogFilters()" style="background: #cbd5e1; color: #1e293b; border: none; padding: 8px 15px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 0.9rem; transition: 0.2s; height: 38px;">Reset</button>
+            </div>
+        </div>
+        
+        <!-- Logs Table/Container -->
+        <div style="flex: 1; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 12px; background: white; max-height: 40vh; margin-bottom: 15px;">
+            <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem;">
+                <thead>
+                    <tr style="background: #f1f5f9; color: #475569; border-bottom: 2px solid #e2e8f0; font-weight: 700; position: sticky; top: 0; z-index: 10;">
+                        <th style="padding: 12px 15px; width: 150px;">Timestamp</th>
+                        <th style="padding: 12px 15px; width: 180px;">Staff Email</th>
+                        <th style="padding: 12px 15px; width: 130px;">Action</th>
+                        <th style="padding: 12px 15px;">Details</th>
+                    </tr>
+                </thead>
+                <tbody id="activityLogsTableBody">
+                    <tr>
+                        <td colspan="4" style="text-align: center; padding: 30px; color: #64748b;"><i class="fa-solid fa-spinner fa-spin"></i> Loading activity logs...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <div style="margin-top: 10px; border-top: 1px solid #e2e8f0; padding-top: 15px; display: flex; justify-content: flex-end;">
+            <button type="button" class="cancel-btn" onclick="closeActivityLogsModal()" style="margin: 0; background: #64748b; color: white; padding: 10px 20px; border-radius: 8px; font-weight: 600; border: none; cursor: pointer;">Close Logs</button>
+        </div>
+    </div>
+</div>
+
+<!-- Move these to the very bottom of the file, outside of all modals -->
+<script src="management.js"></script>
+<script src="auth.js"></script>
+</body>
+</html>

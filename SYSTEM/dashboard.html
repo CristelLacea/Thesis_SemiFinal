@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weljo's Dashboard | Select Panel</title>
+    <link rel="stylesheet" href="dashboard.css">
+</head>
+
+<body>
+    <div class="dashboard-wrapper">
+        <div class="selection-container">
+            <header class="dashboard-header">
+                <h1>Welcome, Admin!</h1>
+                <p>Select a workspace to continue</p>
+            </header>
+
+            <div class="panel-grid">
+                <div class="panel-card">
+                    <div class="icon">🛒</div>
+                    <h3>Cashier</h3>
+                    <button onclick="location.href='cashier.html'" class="panel-btn">Launch POS</button>
+                    <p class="panel-note">Intended for real-time store transactions and customer checkouts.</p>
+                </div>
+
+                <div class="panel-card">
+                    <div class="icon">📊</div>
+                    <h3>Management</h3>
+                    <button onclick="location.href='management.html'" class="panel-btn secondary">Open Management</button>
+                    <p class="panel-note">Manage your inventory, track stock levels, and view sales reports.</p>
+                </div>
+            </div>
+
+            
+            
+<a href="#" onclick="handleLogout(event)" class="logout-link">Logout</a>        </div>
+    </div>
+
+    <script src="dashboard.js"></script>
+    <script src="management.js"></script>
+    
+   
+    
+</body>
+</html>
