@@ -2,7 +2,7 @@
 const originalFetch = window.fetch;
 window.fetch = function (url, options = {}) {
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    const remoteBackendUrl = 'https://weljo-backend.onrender.com'; // TODO: Update with your Render URL
+    const remoteBackendUrl = 'https://thesis-semifinal.onrender.com'; 
     
     let processedUrl = url;
     if (!isLocal && typeof url === 'string' && url.startsWith('http://localhost:3000')) {
@@ -202,18 +202,19 @@ searchInput.addEventListener('input', (e) => {
     }
 });
 
-// Force focus to the invisible scanner input on every click
+// Force focus to the invisible scanner input on every click (only on desktop cash registers)
 document.addEventListener('click', (e) => {
-    // If we aren't clicking the cash input or search input, move focus back to scanner
-    if (e.target.id !== 'cashReceived' && e.target.id !== 'searchProduct') {
-        scannerInput.focus();
-    }
-});
-
-document.addEventListener('click', (e) => {
-    // If we click anywhere EXCEPT the numpad/search, focus scanner
-    if (e.target.id !== 'searchProduct' && !e.target.closest('.numpad')) {
-        scannerInput.focus();
+    const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    if (isMobileDevice) return; // Do not force focus on mobile (prevents native keyboard from popping up)
+    
+    // If we click anywhere EXCEPT the product search, cash input, or numpad, return focus to scanner
+    if (
+        e.target.id !== 'searchProduct' && 
+        e.target.id !== 'cashReceived' && 
+        !e.target.closest('.numpad') &&
+        !e.target.closest('.modal-content')
+    ) {
+        if (scannerInput) scannerInput.focus();
     }
 });
 
@@ -401,7 +402,12 @@ async function processTransaction() {
         const saleData = {
             total_amount: total,
             total_profit: transactionProfit,
-            items_json: JSON.stringify(cart.map(i => ({ name: i.prod_name, qty: i.qty })))
+            items_json: JSON.stringify(cart.map(i => ({ 
+                name: i.prod_name, 
+                qty: i.qty,
+                price: i.price, // Store selling price at checkout
+                cost: i.orig_price // Store product capital cost at checkout
+            })))
         };
 
         const saveRes = await fetch('http://localhost:3000/api/save-sale', {

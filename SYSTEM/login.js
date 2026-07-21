@@ -2,7 +2,7 @@
 const originalFetch = window.fetch;
 window.fetch = function (url, options = {}) {
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    const remoteBackendUrl = 'https://weljo-backend.onrender.com'; // TODO: Update with your Render URL
+    const remoteBackendUrl = 'https://thesis-semifinal.onrender.com'; 
     
     let processedUrl = url;
     if (!isLocal && typeof url === 'string' && url.startsWith('http://localhost:3000')) {

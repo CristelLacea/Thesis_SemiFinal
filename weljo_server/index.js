@@ -29,15 +29,20 @@ const pool = new Pool({
 // Use 'pool' directly as your 'db'
 const db = pool;
 
-// --- HELPER: GET LOCAL TIMESTAMP ---
+// --- HELPER: GET LOCAL TIMESTAMP (PHILIPPINES TIMEZONE UTC+8) ---
 const getLocalTimestamp = () => {
     const now = new Date();
-    return now.getFullYear() + '-' + 
-           String(now.getMonth() + 1).padStart(2, '0') + '-' + 
-           String(now.getDate()).padStart(2, '0') + ' ' + 
-           String(now.getHours()).padStart(2, '0') + ':' + 
-           String(now.getMinutes()).padStart(2, '0') + ':' + 
-           String(now.getSeconds()).padStart(2, '0');
+    const formatter = new Intl.DateTimeFormat('sv-SE', {
+        timeZone: 'Asia/Manila',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+    });
+    return formatter.format(now) + '+08:00';
 };
 
 // Middleware to retrieve user email from request headers

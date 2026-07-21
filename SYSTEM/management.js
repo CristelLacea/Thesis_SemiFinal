@@ -3,7 +3,7 @@
 const originalFetch = window.fetch;
 window.fetch = function (url, options = {}) {
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    const remoteBackendUrl = 'https://weljo-backend.onrender.com'; // TODO: Update with your Render URL
+    const remoteBackendUrl = 'https://thesis-semifinal.onrender.com'; 
     
     let processedUrl = url;
     if (!isLocal && typeof url === 'string' && url.startsWith('http://localhost:3000')) {
@@ -648,7 +648,7 @@ function renderEnhancedStats(filteredSales, dbProducts) {
 
                     const price = parseFloat(item.price) || (prod.orig_price + prod.price_capital);
                     const qty = parseInt(item.qty) || 0;
-                    const cost = parseFloat(prod.orig_price) || 0;
+                    const cost = parseFloat(item.cost) || parseFloat(prod.orig_price) || 0;
 
                     if (!itemPerformance.eras[price]) { 
                         itemPerformance.eras[price] = { qty: 0, rev: 0 }; 
@@ -723,7 +723,7 @@ function renderEnhancedStats(filteredSales, dbProducts) {
                                         <!-- Price Record Block -->
                                         <div style="background: #f8fafc; border: 1px solid #edf2f7; border-radius: 10px; padding: 12px 18px; min-width: 160px; flex: 1; max-width: 220px;">
                                             <div style="color: #64748b; font-weight: bold; font-size: 0.8rem; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.3px;">
-                                                Sold at ₱${parseFloat(price).toFixed(0)}
+                                                Sold at ₱${parseFloat(price).toFixed(2)}
                                             </div>
                                             <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 4px;">
                                                 <span style="font-size: 0.85rem; color: #475569;">Quantity:</span>
@@ -870,12 +870,15 @@ async function renderTransactionHistory(filterDate = null) {
                 <!-- Automatically Visible Product List -->
                 <div class="item-list-box">
                     <div style="font-size: 0.72rem; color: #64748b; font-weight: 700; text-transform: uppercase; padding: 4px 0 6px 0; border-bottom: 1px solid #e2e8f0; margin-bottom: 4px; letter-spacing: 0.5px;">Dispatched Items Breakdown:</div>
-                    ${items.map(i => `
-                        <div class="item-detail-row">
-                            <span style="font-weight: 600; color: #334155;">${i.name}</span>
-                            <span style="font-weight: 700; color: #475569; font-size: 0.8rem; background: #ffffff; padding: 2px 8px; border-radius: 4px; border: 1px solid #e2e8f0;">qty: ${i.qty}</span>
-                        </div>
-                    `).join('')}
+                    ${items.map(i => {
+                        const priceStr = i.price ? ` @ ₱${parseFloat(i.price).toFixed(2)}` : '';
+                        return `
+                            <div class="item-detail-row">
+                                <span style="font-weight: 600; color: #334155;">${i.name}${priceStr}</span>
+                                <span style="font-weight: 700; color: #475569; font-size: 0.8rem; background: #ffffff; padding: 2px 8px; border-radius: 4px; border: 1px solid #e2e8f0;">qty: ${i.qty}</span>
+                            </div>
+                        `;
+                    }).join('')}
                 </div>
                 
                 <!-- Bottom Financial Summary Aggregates Footer Row -->

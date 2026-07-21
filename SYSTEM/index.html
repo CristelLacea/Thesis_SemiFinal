@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weljo's Store System | Login</title>
+    <link rel="stylesheet" href="login.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+
+<body>
+    <div class="login-wrapper">
+        <div class="login-container">
+            
+            <div class="welcome-panel">
+                <div class="text-overlay" style="display: flex; flex-direction: column; align-items: center; text-align: center; width: 100%;">
+                    <img src="./LOGONEWEST.png" class="login-logo" alt="Weljo's Logo">
+                    <p style="text-align: center; font-size: 0.85rem; color: #cbd5e1; opacity: 0.7; margin-top: 20px; max-width: 240px; letter-spacing: 0.5px; line-height: 1.4;">Please enter your credentials to access the system</p>
+                </div>
+            </div>
+
+            <div class="form-panel">
+                <form class="login-form">
+                    <h3>Staff Login</h3>
+                    
+                    <div class="input-group">
+                        <label for="email">Email</label>
+                        <input type="text" id="email" name="email" required placeholder="Email">
+                    </div>
+
+                    <div class="input-group">
+    <label for="password">Password</label>
+    <div class="password-wrapper">
+        <input type="password" id="password" name="password" required placeholder="••••••••">
+        <i class="fa-solid fa-eye-slash toggle-icon" id="togglePassword"></i>
+    </div>
+</div>
+
+                    <button type="submit" class="login-btn">Login</button>
+                    
+                    <div class="form-footer">
+                        <p>Authorized access only. System activity is logged.</p>
+                    </div>
+
+
+                </form>
+            </div>
+
+        </div>
+    </div>
+
+    <script src="login.js"></script>
+</body>
+</html>

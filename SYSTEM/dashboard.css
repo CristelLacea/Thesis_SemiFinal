@@ -181,3 +181,43 @@
     backdrop-filter: blur(10px);
     transition: 0.3s;
 }
+
+/* Mobile & Tablet Responsiveness */
+@media (max-width: 768px) {
+    .dashboard-wrapper {
+        height: auto;
+        min-height: 100vh;
+        padding: 50px 20px;
+        overflow-y: auto;
+    }
+    .selection-container {
+        width: 100%;
+    }
+    .dashboard-header h1 {
+        font-size: 2.2rem;
+        letter-spacing: -1px;
+    }
+    .dashboard-header p {
+        font-size: 0.95rem;
+    }
+    .panel-grid {
+        grid-template-columns: 1fr; /* Stack cards vertically */
+        gap: 25px;
+        margin-top: 30px;
+    }
+    .panel-card {
+        padding: 30px 20px;
+    }
+    .panel-card h2 {
+        font-size: 1.5rem;
+    }
+    .logout-link {
+        position: relative;
+        top: 0;
+        right: 0;
+        display: inline-block;
+        margin-bottom: 25px;
+        padding: 10px 20px;
+        font-size: 0.8rem;
+    }
+}

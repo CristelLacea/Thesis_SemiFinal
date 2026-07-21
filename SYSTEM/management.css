@@ -1527,3 +1527,135 @@ td {
 .expired-container li:last-child {
     margin-bottom: 0;
 }
+
+/* Mobile & Tablet Responsiveness */
+@media (max-width: 992px) {
+    /* 🔴 UNLOCK GLOBAL SCROLLING ON MOBILE */
+    body {
+        overflow-y: auto !important;
+        height: auto !important;
+    }
+    
+    .mgmt-wrapper {
+        flex-direction: column !important;
+        height: auto !important;
+        min-height: 100vh;
+        overflow: visible !important;
+    }
+    
+    .main-content {
+        padding: 20px 15px !important;
+        overflow: visible !important;
+        height: auto !important;
+    }
+    
+    /* Stats Summary Grid Stacks Vertically */
+    .stats-metric-grid {
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        gap: 15px !important;
+    }
+    
+    /* Top selling items / categories breakdown stacks vertically */
+    .analytics-split-layout {
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        gap: 20px !important;
+    }
+    
+    /* Ledger view stacks vertically */
+    .ledger-view-wrapper {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 20px !important;
+    }
+    
+    .history-panel {
+        height: auto !important;
+    }
+    
+    /* Header toolbars stack vertically */
+    .stats-toolbar {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 15px !important;
+    }
+    .stats-toolbar .report-controls {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        width: 100% !important;
+        gap: 10px !important;
+    }
+    .stats-toolbar .btn-group {
+        width: 100% !important;
+        justify-content: space-between !important;
+        display: flex !important;
+    }
+    .stats-toolbar .date-input-wrapper {
+        width: 100% !important;
+        justify-content: space-between !important;
+        display: flex !important;
+    }
+
+    .side-nav {
+        width: 100%;
+        padding: 15px 20px;
+        flex-direction: row;
+        align-items: center;
+        gap: 20px;
+        height: auto;
+        justify-content: space-between;
+    }
+    
+    .side-nav .brand {
+        margin-bottom: 0;
+        font-size: 1.2rem;
+        flex-shrink: 0;
+    }
+    
+    .nav-links {
+        flex-direction: row;
+        overflow-x: auto;
+        gap: 10px;
+        width: auto;
+        flex: 1;
+        padding-bottom: 5px;
+    }
+    
+    .nav-btn {
+        padding: 8px 15px;
+        font-size: 0.85rem;
+        white-space: nowrap;
+        text-align: center;
+        border-radius: 6px;
+    }
+    
+    .user-control {
+        border-top: none;
+        padding-top: 0;
+        display: none; /* Hide admin name display in top nav bar on mobile */
+    }
+    
+    .stats-row {
+        grid-template-columns: 1fr; /* Stack dashboard stats cards */
+        gap: 15px;
+    }
+    
+    .overview-grid {
+        grid-template-columns: 1fr; /* Stack charts and warning feeds */
+        gap: 20px;
+    }
+    
+    .chart-box {
+        height: auto;
+    }
+    
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .table-container {
+        overflow-x: auto; /* Enable side scrolling for tables on mobile */
+    }
+}

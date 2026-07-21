@@ -206,3 +206,50 @@ body {
     transform: scale(1.04);
     filter: drop-shadow(0 15px 40px rgba(245, 158, 11, 0.25)) drop-shadow(0 6px 12px rgba(0,0,0,0.4));
 }
+
+/* Mobile & Tablet Responsiveness */
+@media (max-width: 768px) {
+    body {
+        overflow-y: auto;
+        height: auto;
+        padding: 30px 15px;
+        display: block; /* Allow natural scrolling */
+    }
+    
+    .login-wrapper {
+        height: auto;
+        min-height: 100%;
+        display: flex;
+        align-items: center;
+    }
+    
+    .login-container {
+        grid-template-columns: 1fr; /* Stack panels vertically */
+        height: auto;
+        width: 100%;
+        max-width: 440px;
+        margin: 0 auto;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+    }
+    
+    .welcome-panel {
+        border-right: none;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        padding: 35px 20px;
+    }
+    
+    .login-logo {
+        width: 160px;
+        height: 160px;
+        margin-bottom: 5px;
+    }
+    
+    .welcome-panel p {
+        font-size: 0.8rem;
+        margin-top: 10px !important;
+    }
+    
+    .form-panel {
+        padding: 40px 25px;
+    }
+}
