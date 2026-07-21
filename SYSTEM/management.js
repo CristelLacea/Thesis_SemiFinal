@@ -50,6 +50,11 @@ function showSection(id) {
 
     // Sidebar Active State
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    const activeBtn = Array.from(document.querySelectorAll('.nav-btn')).find(b => {
+        const attr = b.getAttribute('onclick');
+        return attr && attr.includes(id);
+    });
+    if (activeBtn) activeBtn.classList.add('active');
     
     // Trigger specific logic per tab
     if (id === 'dashboard-overview') { updateOverview(); initChart(); }
@@ -69,11 +74,16 @@ function showSection(id) {
         if (!specificView || specificView.style.display !== 'block') {
             renderCustomerFolders(); 
         }   
-}
-
-if (id === 'user-management-section') { 
+    }
+    if (id === 'user-management-section') { 
         renderUserList(); 
-        // 🟢 Trigger both logs and users
+    }
+    if (id === 'reports-section') {
+        const input = document.getElementById('reportMasterDate');
+        if (input && !input.value) {
+            input.valueAsDate = new Date();
+        }
+        generateReportEngine();
     }
 }
 
@@ -1993,3 +2003,170 @@ async function fetchAndRenderActivityLogs() {
         tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 30px; color: #ef4444; font-weight: 600;">Failed to load activity logs from server.</td></tr>';
     }
 }
+
+// --- 7. SALES REPORT GENERATOR & PDF EXPORTER ---
+let currentReportPeriod = 'day';
+
+function setReportPeriod(period) {
+    currentReportPeriod = period;
+    document.querySelectorAll('#reports-section .range-btn').forEach(btn => {
+        btn.classList.remove('active');
+        btn.style.background = 'transparent';
+        btn.style.color = '#64748b';
+    });
+
+    const activeBtn = document.getElementById(`btnReport${period.charAt(0).toUpperCase() + period.slice(1)}`);
+    if (activeBtn) {
+        activeBtn.classList.add('active');
+        activeBtn.style.background = '#1d2b38';
+        activeBtn.style.color = 'white';
+    }
+
+    generateReportEngine();
+}
+
+async function generateReportEngine() {
+    const masterDateInput = document.getElementById('reportMasterDate');
+    const tableBody = document.getElementById('reportTableBody');
+    if (!masterDateInput || !tableBody) return;
+    if (!masterDateInput.value) {
+        masterDateInput.valueAsDate = new Date();
+    }
+    const baseDate = new Date(masterDateInput.value);
+
+    // Update document generated date/time
+    document.getElementById('reportGenTime').innerText = new Date().toLocaleString();
+    document.getElementById('reportOperatorEmail').innerText = localStorage.getItem('currentUser') || 'system@weljo.com';
+
+    // Format Period Header Text
+    let rangeText = "";
+    const dateFormatted = new Date(masterDateInput.value).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+    if (currentReportPeriod === 'day') {
+        rangeText = `Daily Report (${dateFormatted})`;
+    } else if (currentReportPeriod === 'week') {
+        rangeText = `Weekly Performance Report (Last 7 Days from ${dateFormatted})`;
+    } else if (currentReportPeriod === 'month') {
+        const monthFormatted = new Date(masterDateInput.value).toLocaleDateString(undefined, { year: 'numeric', month: 'long' });
+        rangeText = `Monthly Summary Report (${monthFormatted})`;
+    } else if (currentReportPeriod === 'year') {
+        rangeText = `Annual Corporate Report (Year ${baseDate.getFullYear()})`;
+    }
+    document.getElementById('reportPeriodText').innerText = rangeText;
+
+    tableBody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 30px; color: #64748b;"><i class="fa-solid fa-spinner fa-spin"></i> Generating report sheets...</td></tr>';
+
+    try {
+        const [salesRes, prodRes] = await Promise.all([
+            fetch('http://localhost:3000/api/sales'),
+            fetch('http://localhost:3000/api/products')
+        ]);
+        const allSales = await salesRes.json();
+        const dbProducts = await prodRes.json();
+
+        // 1. Filter Transactions by Period Selection
+        const filteredSales = allSales.filter(sale => {
+            const saleDate = new Date(sale.sale_date);
+            if (currentReportPeriod === 'day') {
+                return saleDate.toLocaleDateString('sv-SE') === masterDateInput.value;
+            } else if (currentReportPeriod === 'week') {
+                const diffTime = Math.abs(baseDate - saleDate);
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                return diffDays <= 7;
+            } else if (currentReportPeriod === 'month') {
+                return saleDate.getMonth() === baseDate.getMonth() && saleDate.getFullYear() === baseDate.getFullYear();
+            } else if (currentReportPeriod === 'year') {
+                return saleDate.getFullYear() === baseDate.getFullYear();
+            }
+            return true;
+        });
+
+        // 2. Map item quantities, revenues and profits based on historical transactions
+        const itemMap = {};
+        filteredSales.forEach(sale => {
+            let items = [];
+            try { 
+                items = typeof sale.items_json === 'string' ? JSON.parse(sale.items_json) : sale.items_json; 
+            } catch(e){ return; }
+            if (!items || !Array.isArray(items)) return;
+
+            items.forEach(i => {
+                if (i.name === 'Debt Payment' || i.isCollection === true) return;
+                const name = i.name;
+                const qty = parseInt(i.qty) || 0;
+                
+                // Read historical checkout values
+                const price = parseFloat(i.price) || 0;
+                const cost = parseFloat(i.cost) || 0;
+
+                if (!itemMap[name]) {
+                    itemMap[name] = { qty: 0, gross: 0, profit: 0, price: price, cost: cost };
+                }
+
+                itemMap[name].qty += qty;
+                if (itemMap[name].price === 0 && price > 0) itemMap[name].price = price;
+                if (itemMap[name].cost === 0 && cost > 0) itemMap[name].cost = cost;
+
+                itemMap[name].gross += (price * qty);
+                itemMap[name].profit += ((price - cost) * qty);
+            });
+        });
+
+        // 3. Fallback to catalog prices for older pre-existing transactions lacking historical JSON properties
+        Object.keys(itemMap).forEach(name => {
+            const p = dbProducts.find(prod => prod.prod_name === name);
+            if (p) {
+                const price = p.orig_price + p.price_capital;
+                const cost = p.orig_price;
+                if (itemMap[name].price === 0) {
+                    itemMap[name].price = price;
+                    itemMap[name].gross = price * itemMap[name].qty;
+                }
+                if (itemMap[name].cost === 0) {
+                    itemMap[name].cost = cost;
+                    itemMap[name].profit = (price - cost) * itemMap[name].qty;
+                }
+            }
+        });
+
+        // 4. Render Table Body Rows
+        let tableHtml = '';
+        let totalQty = 0;
+        let totalGross = 0;
+        let totalProfit = 0;
+
+        const sortedItems = Object.entries(itemMap).sort((a, b) => a[0].localeCompare(b[0]));
+        sortedItems.forEach(([name, data]) => {
+            totalQty += data.qty;
+            totalGross += data.gross;
+            totalProfit += data.profit;
+
+            tableHtml += `
+                <tr style="border-bottom: 1px solid #e2e8f0;">
+                    <td style="padding: 12px 5px; font-weight: 600; color: #1e293b;">${name}</td>
+                    <td style="padding: 12px 5px; text-align: center; font-weight: 700;">${data.qty} pcs</td>
+                    <td style="padding: 12px 5px; text-align: right; color: #475569;">₱${data.price.toFixed(2)}</td>
+                    <td style="padding: 12px 5px; text-align: right; font-weight: 800; color: #0f172a;">₱${data.gross.toFixed(2)}</td>
+                    <td style="padding: 12px 5px; text-align: right; font-weight: 800; color: #10b981;">₱${data.profit.toFixed(2)}</td>
+                </tr>
+            `;
+        });
+
+        if (tableHtml === '') {
+            tableHtml = `<tr><td colspan="5" style="text-align: center; padding: 40px; color: #94a3b8; font-style: italic;"><i class="fa-solid fa-receipt" style="display:block; font-size:1.8rem; margin-bottom:10px;"></i> No sales recorded for this period range.</td></tr>`;
+        }
+
+        tableBody.innerHTML = tableHtml;
+
+        // 5. Update grand total metrics indicators
+        document.getElementById('reportTotalQty').innerText = `${totalQty} pcs`;
+        document.getElementById('reportTotalGross').innerText = `₱${totalGross.toFixed(2)}`;
+        document.getElementById('reportTotalProfit').innerText = `₱${totalProfit.toFixed(2)}`;
+        const margin = totalGross > 0 ? (totalProfit / totalGross) * 100 : 0;
+        document.getElementById('reportTotalMargin').innerText = `${margin.toFixed(2)}%`;
+
+    } catch (err) {
+        console.error("Report generation failed:", err);
+        tableBody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 30px; color: #ef4444; font-weight: 600;">Failed to fetch transactional streams from database.</td></tr>';
+    }
+}
+

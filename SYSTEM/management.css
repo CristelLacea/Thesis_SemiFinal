@@ -1659,3 +1659,56 @@ td {
         overflow-x: auto; /* Enable side scrolling for tables on mobile */
     }
 }
+
+/* CSS Printing Rules for clean paper PDF form */
+@media print {
+    /* Hide everything except the print report area */
+    body, html {
+        background: white !important;
+        color: black !important;
+        height: auto !important;
+        overflow: visible !important;
+        font-size: 12pt !important;
+    }
+    
+    /* Hide wrappers, navigation side bar, filters toolbar, and print triggers */
+    .mgmt-wrapper, .side-nav, .no-print, .stats-toolbar, header, nav, button {
+        display: none !important;
+    }
+    
+    #reports-section {
+        display: block !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    
+    #printReportArea {
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        max-width: 100% !important;
+        width: 100% !important;
+        display: block !important;
+    }
+    
+    tr {
+        page-break-inside: avoid;
+    }
+    
+    /* Ensure table borders render cleanly when printing */
+    table {
+        border-collapse: collapse !important;
+        width: 100% !important;
+    }
+    th, td {
+        border-bottom: 1px solid #000000 !important;
+        padding: 8px 4px !important;
+    }
+    
+    /* Keep the header text visible in black */
+    h1, h2, h3, p, span, strong, td, th {
+        color: #000000 !important;
+    }
+}

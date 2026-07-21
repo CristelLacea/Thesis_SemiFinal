@@ -40,9 +40,9 @@
                 <div class="payment-section">
                     <div class="payment-input">
                         <label>Cash Received:</label>
-<!-- Added 'readonly' and 'onfocus' to blur immediately if clicked -->
-<input type="text" id="cashReceived" placeholder="0.00" readonly onfocus="this.blur()">
-</div>
+                        <!-- Disable mobile keyboard popup but allow focus and physical/numpad inputs -->
+                        <input type="text" id="cashReceived" placeholder="0.00" inputmode="none">
+                    </div>
 
                     <div class="numpad">
                         <button onclick="pressNum('7')">7</button>
