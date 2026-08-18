@@ -187,14 +187,86 @@ app.get('/api/utang-list-by-name', (req, res) => {
     });
 });
 
+app.get('/api/get-all-utang', (req, res) => {
+    db.query("SELECT * FROM utang_table ORDER BY date_borrowed DESC, utang_id DESC", (err, results) => {
+        if (err) return res.status(500).send(err);
+        res.json(results ? results.rows : []);
+    });
+});
+
 app.post('/api/save-utang', (req, res) => {
     const { customer_name, items_list, amount, profit } = req.body;
-    const date_borrowed = getLocalTimestamp().split(' ')[0]; 
-    const sql = `INSERT INTO utang_table (customer_name, items_list, amount, profit, date_borrowed, status) VALUES ($1, $2, $3, $4, $5, 'Unpaid')`;
-    db.query(sql, [customer_name, items_list, amount, profit, date_borrowed], (err) => {
+    const date_borrowed = getLocalTimestamp().split(' ')[0];
+    const newAmount = parseFloat(amount) || 0;
+
+    // 1. Fetch current outstanding balance for the customer
+    db.query("SELECT * FROM utang_table WHERE customer_name = $1", [customer_name], (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
-        logActivity(req.userEmail, "Record Debt (Utang)", `Recorded new debt for customer ${customer_name}: ₱${amount}`);
-        res.json({ message: "Note saved to Ledger! 📝" });
+        const rows = results ? results.rows : [];
+        
+        // Sort chronologically to compute exact effective credit usage
+        const sortedRows = [...rows].sort((a, b) => {
+            if (a.date_borrowed !== b.date_borrowed) {
+                return a.date_borrowed.localeCompare(b.date_borrowed);
+            }
+            return a.utang_id - b.utang_id;
+        });
+
+        let currentBalance = 0;
+        let totalChargesSinceLastZero = 0;
+
+        sortedRows.forEach(r => {
+            const isPayment = r.items_list.includes("Debt Payment");
+            const amount = parseFloat(r.amount) || 0;
+            if (isPayment) {
+                currentBalance -= amount;
+                if (currentBalance <= 0) {
+                    currentBalance = 0;
+                    totalChargesSinceLastZero = 0;
+                }
+            } else {
+                currentBalance += amount;
+                totalChargesSinceLastZero += amount;
+            }
+        });
+
+        // 2. Fetch the customer's credit limit
+        db.query("SELECT credit_limit FROM utang_customers WHERE fullname = $1", [customer_name], (limErr, limRes) => {
+            if (limErr) return res.status(500).json({ error: limErr.message });
+            const limit = limRes && limRes.rows.length > 0 ? parseFloat(limRes.rows[0].credit_limit) : 2000.00;
+
+            if (totalChargesSinceLastZero + newAmount > limit) {
+                return res.status(400).json({
+                    error: `Credit limit exceeded! Customer's current unpaid debt is ₱${currentBalance.toFixed(2)}. However, because payments do not restore the limit until the debt is fully paid, the effective usage is ₱${totalChargesSinceLastZero.toFixed(2)}. Adding this purchase of ₱${newAmount.toFixed(2)} would exceed their limit of ₱${limit.toFixed(2)}.`
+                });
+            }
+
+            // 3. Save the utang entry if within limit
+            const sql = `INSERT INTO utang_table (customer_name, items_list, amount, profit, date_borrowed, status) VALUES ($1, $2, $3, $4, $5, 'Unpaid')`;
+            db.query(sql, [customer_name, items_list, amount, profit, date_borrowed], (insErr) => {
+                if (insErr) return res.status(500).json({ error: insErr.message });
+                logActivity(req.userEmail, "Record Debt (Utang)", `Recorded new debt for customer ${customer_name}: ${amount}`);
+                res.json({ message: "Note saved to Ledger! " });
+            });
+        });
+    });
+});
+
+app.put('/api/update-customer-limit', (req, res) => {
+    const { fullname, credit_limit } = req.body;
+    const limitVal = parseFloat(credit_limit);
+    if (isNaN(limitVal) || limitVal < 0) {
+        return res.status(400).json({ error: "Invalid credit limit value" });
+    }
+    if (limitVal > 2000.00) {
+        return res.status(400).json({ error: "Credit limit cannot exceed the maximum ceiling of ₱2000.00" });
+    }
+
+    const sql = "UPDATE utang_customers SET credit_limit = $1 WHERE fullname = $2";
+    db.query(sql, [limitVal, fullname], (err) => {
+        if (err) return res.status(500).json({ error: err.message });
+        logActivity(req.userEmail, "Update Credit Limit", `Updated credit limit for customer ${fullname} to ₱${limitVal.toFixed(2)}`);
+        res.json({ message: "Credit limit updated successfully!", credit_limit: limitVal });
     });
 });
 
