@@ -80,13 +80,11 @@
                     <div class="chart-box">
                         <div class="chart-header">
                             <h3>Performance Trends</h3>
-                            <div class="range-controls">
-                                <input type="date" id="chartBaseDate" class="chart-datepicker" onchange="handleChartDateChange(this.value)">
-
-                                <button class="range-btn" onclick="updateChartRange('today')">Today</button>
-                                <button class="range-btn active" onclick="updateChartRange('weekly')">Weekly</button>
-                                <button class="range-btn" onclick="updateChartRange('monthly')">Monthly</button>
-                                <button class="range-btn" onclick="updateChartRange('yearly')">Yearly</button>
+                            <div class="range-controls" style="display: flex; gap: 8px; align-items: center;">
+                                <label for="chartStartDate" style="font-size: 0.85rem; color: #64748b; font-weight: 600;">Start:</label>
+                                <input type="date" id="chartStartDate" class="chart-datepicker" onchange="initChart()">
+                                <label for="chartEndDate" style="font-size: 0.85rem; color: #64748b; font-weight: 600;">End:</label>
+                                <input type="date" id="chartEndDate" class="chart-datepicker" onchange="initChart()">
                             </div>
                         </div>
                         <div class="canvas-wrapper">
@@ -117,17 +115,13 @@
         <div>
             <h2 class="section-title" style="font-weight: 800; color: #1d2b38; margin: 0;">Sales & Profit Analytics</h2>
             <p style="font-size: 0.85rem; color: #64748b; margin: 4px 0 0 0;">Real-time business performance matrices and transactional lifecycle trackers.</p>
-        </div>
-        <div class="report-controls" style="display: flex; gap: 15px; align-items: center;">
-            <div class="btn-group" style="background: #f1f5f9; padding: 4px; border-radius: 8px; display: flex; gap: 4px;">
-                <button class="range-btn active" id="btnStatsDay" onclick="setStatPeriod('day')" style="padding: 6px 16px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.85rem; background: #1d2b38; color: white;">Day</button>
-                <button class="range-btn" id="btnStatsWeek" onclick="setStatPeriod('week')" style="padding: 6px 16px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.85rem; background: transparent; color: #64748b;">Week</button>
-                <button class="range-btn" id="btnStatsMonth" onclick="setStatPeriod('month')" style="padding: 6px 16px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.85rem; background: transparent; color: #64748b;">Month</button>
-                <button class="range-btn" id="btnStatsYear" onclick="setStatPeriod('year')" style="padding: 6px 16px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.85rem; background: transparent; color: #64748b;">Year</button>
-            </div>
-            <div class="date-input-wrapper" style="display: flex; align-items: center; gap: 8px;">
-                <label style="font-weight: 600; font-size: 0.85rem; color: #475569;">Target Date:</label>
-                <input type="date" id="statsMasterDate" onchange="loadStatsEngine()" style="padding: 8px 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-weight: 600; color: #1e293b; outline: none; background: white;">
+            <div class="report-controls" style="display: flex; gap: 15px; align-items: center;">
+                <div class="date-input-wrapper" style="display: flex; align-items: center; gap: 8px;">
+                    <label style="font-weight: 600; font-size: 0.85rem; color: #475569;">Start:</label>
+                    <input type="date" id="statsStartDate" onchange="loadStatsEngine()" style="padding: 8px 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-weight: 600; color: #1e293b; outline: none; background: white;">
+                    <label style="font-weight: 600; font-size: 0.85rem; color: #475569;">End:</label>
+                    <input type="date" id="statsEndDate" onchange="loadStatsEngine()" style="padding: 8px 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-weight: 600; color: #1e293b; outline: none; background: white;">
+                </div>
             </div>
         </div>
     </div>
@@ -182,7 +176,6 @@
         </div>
     </div>
 
-<div class="category-stat-body ${searchTerm ? '' : 'collapsed-stats'}" style="padding:0 18px;">
 </section>
 
            <section id="history-section" class="content-section">
@@ -350,6 +343,22 @@
                 <h4 style="text-transform: uppercase; font-size: 0.8rem; color: #64748b; letter-spacing: 0.5px;"><i class="fa-solid fa-calculator"></i> Total Debt</h4>
                 <p id="customerDebtTotal" style="font-size: 3rem; font-weight: 900; color: #ff7675; margin: 15px 0;">₱0.00</p>
                 
+                <div style="background: #f8fafc; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 15px; display: flex; flex-direction: column; gap: 10px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <span style="font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; display: block; letter-spacing: 0.5px;">Credit Limit</span>
+                            <span id="customerCreditLimit" style="font-size: 1.1rem; font-weight: 800; color: #1e293b;">₱2,000.00</span>
+                        </div>
+                        <button id="btnEditCreditLimit" onclick="editCreditLimit()" style="display: none; background: #e2e8f0; color: #475569; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.75rem; transition: all 0.2s;">Edit</button>
+                    </div>
+                    <div style="border-top: 1px dashed #cbd5e1; padding-top: 8px; display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <span style="font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; display: block; letter-spacing: 0.5px;">Available Credit</span>
+                            <span id="customerAvailableCredit" style="font-size: 1.1rem; font-weight: 800; color: #10b981;">₱2,000.00</span>
+                        </div>
+                    </div>
+                </div>
+
                 <hr style="border: 0; border-top: 1px solid #f1f5f9; margin: 20px 0;">
                 
                 <div class="payment-collection-terminal" id="paymentInputTerminal" style="display: flex; flex-direction: column; gap: 12px;">
@@ -471,6 +480,27 @@
     </div>
 </div>
 
+<!-- CREDIT LIMIT MODIFIER MODAL -->
+<div id="creditLimitModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content" style="max-width: 400px; border-top: 5px solid #1d2b38;">
+        <h3><i class="fa-solid fa-credit-card"></i> Edit Credit Limit</h3>
+        <form id="creditLimitForm">
+            <div style="margin-bottom: 15px; background: #eff6ff; border: 1px solid #bfdbfe; padding: 12px; border-radius: 8px; font-size: 0.85rem; color: #1e40af; font-weight: 500; text-align: left; line-height: 1.4;">
+                <i class="fa-solid fa-circle-info"></i> Set a custom credit ceiling for <strong><span id="limitModalCustomerName"></span></strong>. The maximum allowed limit is ₱2,000.00.
+            </div>
+            <div class="input-group" style="text-align: left; margin-bottom: 15px;">
+                <label style="font-weight: 600; font-size: 0.88rem; color: #475569; display: block; margin-bottom: 6px;">Credit Limit Amount (₱):</label>
+                <input type="number" id="newLimitAmountInput" placeholder="2000.00" min="0" max="2000" step="0.01" required 
+                       style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 1.1rem; font-weight: bold; outline: none; box-sizing: border-box;">
+            </div>
+            <div class="modal-actions" style="margin-top: 20px;">
+                <button type="button" class="cancel-btn" onclick="closeCreditLimitModal()">Cancel</button>
+                <button type="submit" class="save-btn" style="background: #1d2b38;">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <div id="globalAlert" class="modal-overlay" style="display:none; z-index: 20000; background: rgba(0,0,0,0.7);">
     <div class="modal-content alert-box" style="background: white; border-radius: 15px; z-index: 20001;">
         <div id="alertIcon" style="font-size: 3rem;"></div>
@@ -529,21 +559,23 @@
 
 <section id="reports-section" class="content-section" style="display: none;">
     <!-- Toolbar with controls (no-print) -->
-    <div class="stats-toolbar no-print" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid #e2e8f0;">
+    <div class="stats-toolbar no-print" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
         <div>
-            <h2 class="section-title" style="font-weight: 800; color: #1d2b38; margin: 0;">Sales Reports</h2>
-            <p style="font-size: 0.85rem; color: #64748b; margin: 4px 0 0 0;">Generate and print official paper-form PDF reports for item sales.</p>
+            <h2 class="section-title" style="font-weight: 800; color: #1d2b38; margin: 0;">Business Reports</h2>
+            <p style="font-size: 0.85rem; color: #64748b; margin: 4px 0 0 0;">Generate and print official paper-form PDF reports for sales and credit transactions.</p>
         </div>
-        <div class="report-controls" style="display: flex; gap: 15px; align-items: center;">
-            <div class="btn-group" style="background: #f1f5f9; padding: 4px; border-radius: 8px; display: flex; gap: 4px;">
-                <button class="range-btn active" id="btnReportDay" onclick="setReportPeriod('day')" style="padding: 6px 16px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.85rem; background: #1d2b38; color: white;">Day</button>
-                <button class="range-btn" id="btnReportWeek" onclick="setReportPeriod('week')" style="padding: 6px 16px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.85rem; background: transparent; color: #64748b;">Week</button>
-                <button class="range-btn" id="btnReportMonth" onclick="setReportPeriod('month')" style="padding: 6px 16px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.85rem; background: transparent; color: #64748b;">Month</button>
-                <button class="range-btn" id="btnReportYear" onclick="setReportPeriod('year')" style="padding: 6px 16px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.85rem; background: transparent; color: #64748b;">Year</button>
+        <div class="report-controls" style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+            <!-- Report Type Segmented Toggle -->
+            <div class="report-type-toggle" style="display: flex; background: #e2e8f0; padding: 3px; border-radius: 8px; border: 1px solid #cbd5e1;">
+                <button type="button" id="btnReportCash" onclick="setReportType('cash')" style="border: none; background: #1d2b38; color: white; padding: 6px 12px; border-radius: 6px; font-weight: 700; font-size: 0.75rem; cursor: pointer; transition: all 0.2s;">Direct Sales (Cash)</button>
+                <button type="button" id="btnReportCollections" onclick="setReportType('collections')" style="border: none; background: transparent; color: #475569; padding: 6px 12px; border-radius: 6px; font-weight: 700; font-size: 0.75rem; cursor: pointer; transition: all 0.2s;">Collections (Payments)</button>
             </div>
+
             <div class="date-input-wrapper" style="display: flex; align-items: center; gap: 8px;">
-                <label style="font-weight: 600; font-size: 0.85rem; color: #475569;">Target Date:</label>
-                <input type="date" id="reportMasterDate" onchange="generateReportEngine()" style="padding: 8px 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-weight: 600; color: #1e293b; outline: none; background: white;">
+                <label style="font-weight: 600; font-size: 0.85rem; color: #475569;">Start:</label>
+                <input type="date" id="reportStartDate" onchange="generateReportEngine()" style="padding: 8px 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-weight: 600; color: #1e293b; outline: none; background: white;">
+                <label style="font-weight: 600; font-size: 0.85rem; color: #475569;">End:</label>
+                <input type="date" id="reportEndDate" onchange="generateReportEngine()" style="padding: 8px 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-weight: 600; color: #1e293b; outline: none; background: white;">
             </div>
             <button onclick="window.print()" style="background: #10b981; color: white; padding: 10px 18px; border-radius: 10px; border: none; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15);">
                 <i class="fa-solid fa-print"></i> Print / Save PDF
@@ -556,17 +588,16 @@
         <!-- Header Section -->
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 3px double #1e293b; padding-bottom: 20px; margin-bottom: 25px;">
             <div style="display: flex; align-items: center;">
-                <img src="LOGONEWEST_BLACK.png" alt="Logo" style="height: 95px; width: auto; object-fit: contain; margin-right: 20px;">
-                <div style="border-left: 2px solid #cbd5e1; padding-left: 20px; height: 80px; display: flex; flex-direction: column; justify-content: center;">
-                    <h1 style="font-size: 1.95rem; font-weight: 900; color: #0f172a; margin: 0; letter-spacing: -0.5px; line-height: 1.1;">Weljo's Convenience Store</h1>
-                    <p style="font-size: 0.82rem; color: #64748b; margin: 4px 0 0 0; font-weight: 500;">Convenience & Retail POS Management System</p>
-                    <p style="font-size: 0.82rem; color: #64748b; margin: 2px 0 0 0; font-weight: 500;">Del Carmen Norte, Balilihan, Bohol</p>
+                <img src="LOGONEWEST_BLACK.png" alt="Logo" style="height: 100px; width: auto; object-fit: contain; margin-right: 20px;">
+                <div style="border-left: 2px solid #cbd5e1; padding-left: 20px; height: 75px; display: flex; flex-direction: column; justify-content: center;">
+                    <p style="font-size: 0.82rem; color: #1e293b; margin: 0; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; line-height: 1.35;">Convenience & Retail POS<br>Management System</p>
+                    <p style="font-size: 0.82rem; color: #64748b; margin: 4px 0 0 0; font-weight: 500;">Del Carmen Norte, Balilihan, Bohol</p>
                 </div>
             </div>
-            <div style="text-align: right;">
-                <h2 style="font-size: 1.25rem; font-weight: 800; color: #1e293b; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">Sales Performance Report</h2>
-                <p style="font-size: 0.8rem; color: #64748b; margin: 6px 0 0 0;"><strong>Period:</strong> <span id="reportPeriodText">Day (07/21/2026)</span></p>
-                <p style="font-size: 0.8rem; color: #64748b; margin: 2px 0 0 0;"><strong>Generated:</strong> <span id="reportGenTime">7/21/2026, 11:21 AM</span></p>
+            <div style="text-align: right; flex-shrink: 0; min-width: 320px; height: 75px; display: flex; flex-direction: column; justify-content: center; align-items: flex-end;">
+                <h2 id="reportDocumentTitle" style="font-size: 1.25rem; font-weight: 800; color: #1e293b; margin: 0; text-transform: uppercase; letter-spacing: 0.5px; line-height: 1.2;">Sales Performance Report</h2>
+                <p style="font-size: 0.8rem; color: #64748b; margin: 4px 0 0 0; font-weight: 500;"><strong>Period:</strong> <span id="reportPeriodText">July 1, 2026 - August 18, 2026</span></p>
+                <p style="font-size: 0.8rem; color: #64748b; margin: 2px 0 0 0; font-weight: 500;"><strong>Generated:</strong> <span id="reportGenTime">8/18/2026, 6:32:04 PM</span></p>
             </div>
         </div>
 
@@ -574,7 +605,7 @@
         <div style="margin-bottom: 30px;">
             <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem;">
                 <thead>
-                    <tr style="border-bottom: 2px solid #0f172a; color: #0f172a; font-weight: bold;">
+                    <tr id="reportTableHeader" style="border-bottom: 2px solid #0f172a; color: #0f172a; font-weight: bold;">
                         <th style="padding: 10px 5px; width: 40%;">PRODUCT NAME</th>
                         <th style="padding: 10px 5px; width: 15%; text-align: center;">QTY SOLD</th>
                         <th style="padding: 10px 5px; width: 15%; text-align: right;">UNIT PRICE</th>
@@ -591,19 +622,19 @@
         <!-- Summary Calculations Footer Grid -->
         <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 40px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; text-align: center;">
             <div>
-                <span style="font-size: 0.72rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Total Items Sold</span>
+                <span id="reportMetric1Label" style="font-size: 0.72rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Total Items Sold</span>
                 <p id="reportTotalQty" style="font-size: 1.3rem; font-weight: 800; color: #0f172a; margin: 5px 0 0 0;">0 pcs</p>
             </div>
             <div>
-                <span style="font-size: 0.72rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Gross Revenue</span>
+                <span id="reportMetric2Label" style="font-size: 0.72rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Gross Revenue</span>
                 <p id="reportTotalGross" style="font-size: 1.3rem; font-weight: 800; color: #0f172a; margin: 5px 0 0 0;">₱0.00</p>
             </div>
             <div>
-                <span style="font-size: 0.72rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Total Profit</span>
+                <span id="reportMetric3Label" style="font-size: 0.72rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Total Profit</span>
                 <p id="reportTotalProfit" style="font-size: 1.3rem; font-weight: 800; color: #10b981; margin: 5px 0 0 0;">₱0.00</p>
             </div>
             <div>
-                <span style="font-size: 0.72rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Profit Margin</span>
+                <span id="reportMetric4Label" style="font-size: 0.72rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Profit Margin</span>
                 <p id="reportTotalMargin" style="font-size: 1.3rem; font-weight: 800; color: #f59e0b; margin: 5px 0 0 0;">0.00%</p>
             </div>
         </div>

@@ -57,14 +57,36 @@ function showSection(id) {
     if (activeBtn) activeBtn.classList.add('active');
     
     // Trigger specific logic per tab
-    if (id === 'dashboard-overview') { updateOverview(); initChart(); }
+    if (id === 'dashboard-overview') {
+        const startInput = document.getElementById('chartStartDate');
+        const endInput = document.getElementById('chartEndDate');
+        const today = new Date();
+        if (endInput && !endInput.value) {
+            endInput.value = today.toLocaleDateString('sv-SE');
+        }
+        if (startInput && !startInput.value) {
+            const d = new Date();
+            d.setDate(today.getDate() - 14);
+            startInput.value = d.toLocaleDateString('sv-SE');
+        }
+        updateOverview();
+        initChart();
+    }
     if (id === 'inventory-section') { 
         console.log("Navigating to Inventory, rendering table...");
-        backToCategoryHub();}
+        backToCategoryHub();
+    }
     if (id === 'statistics-section') {
-        const input = document.getElementById('statsMasterDate');
-        if (input && !input.value) {
-            input.valueAsDate = new Date();
+        const startInput = document.getElementById('statsStartDate');
+        const endInput = document.getElementById('statsEndDate');
+        const today = new Date();
+        if (endInput && !endInput.value) {
+            endInput.value = today.toLocaleDateString('sv-SE');
+        }
+        if (startInput && !startInput.value) {
+            const d = new Date();
+            d.setDate(today.getDate() - 30);
+            startInput.value = d.toLocaleDateString('sv-SE');
         }
         loadStatsEngine();
     }
@@ -79,9 +101,14 @@ function showSection(id) {
         renderUserList(); 
     }
     if (id === 'reports-section') {
-        const input = document.getElementById('reportMasterDate');
-        if (input && !input.value) {
-            input.valueAsDate = new Date();
+        const startInput = document.getElementById('reportStartDate');
+        const endInput = document.getElementById('reportEndDate');
+        const today = new Date();
+        if (endInput && !endInput.value) {
+            endInput.value = today.toLocaleDateString('sv-SE');
+        }
+        if (startInput && !startInput.value) {
+            startInput.value = today.toLocaleDateString('sv-SE');
         }
         generateReportEngine();
     }
@@ -411,27 +438,48 @@ function updateChartRange(range) {
     initChart(selectedDate);
 }
 
-async function initChart(baseDate = new Date()) {
+async function initChart() {
     const canvas = document.getElementById('salesChart');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const existingChart = Chart.getChart("salesChart"); 
     if (existingChart) { existingChart.destroy(); }
 
+    const startInput = document.getElementById('chartStartDate');
+    const endInput = document.getElementById('chartEndDate');
+    if (!startInput || !endInput) return;
+
+    const today = new Date();
+    if (!endInput.value) {
+        endInput.value = today.toLocaleDateString('sv-SE');
+    }
+    if (!startInput.value) {
+        const d = new Date();
+        d.setDate(today.getDate() - 14);
+        startInput.value = d.toLocaleDateString('sv-SE');
+    }
+
+    const startDate = new Date(startInput.value);
+    const endDate = new Date(endInput.value);
+    startDate.setHours(0, 0, 0, 0);
+    endDate.setHours(23, 59, 59, 999);
+
     try {
         const response = await fetch('http://localhost:3000/api/sales');
         const liveSales = await response.json();
         let labels = [];
         let dataPoints = [];
-        const now = new Date(baseDate);
-        const todayStr = now.toLocaleDateString('sv-SE');
 
-        if (currentRange === 'today') {
+        const isSingleDay = startInput.value === endInput.value;
+
+        if (isSingleDay) {
             labels = ['8AM', '10AM', '12PM', '2PM', '4PM', '6PM', '8PM', '10PM'];
             dataPoints = [0, 0, 0, 0, 0, 0, 0, 0];
+            const targetDateStr = startInput.value;
+
             liveSales.forEach(sale => {
                 const saleDateLocal = new Date(sale.sale_date).toLocaleDateString('sv-SE');
-                if (saleDateLocal === todayStr) {
+                if (saleDateLocal === targetDateStr) {
                     const saleHour = new Date(sale.sale_date).getHours();
                     const amt = parseFloat(sale.total_amount) || 0;
                     if (saleHour < 10) dataPoints[0] += amt;
@@ -444,45 +492,24 @@ async function initChart(baseDate = new Date()) {
                     else dataPoints[7] += amt;
                 }
             });
-        } else if (currentRange === 'weekly') {
-            for (let i = 6; i >= 0; i--) {
-                const d = new Date(now); 
-                d.setDate(now.getDate() - i);
-                const dStr = d.toLocaleDateString('sv-SE');
-                labels.push(d.toLocaleDateString('en-US', { weekday: 'short' }) + " (" + (d.getMonth()+1) + "/" + d.getDate() + ")");
-                const sum = liveSales.filter(s => new Date(s.sale_date).toLocaleDateString('sv-SE') === dStr).reduce((a, b) => a + (parseFloat(b.total_amount) || 0), 0);
-                dataPoints.push(sum);
-            }
-        } else if (currentRange === 'monthly') {
-            const viewYear = now.getFullYear();
-            const viewMonth = now.getMonth();
-            const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
-            const isCurrentMonth = viewYear === new Date().getFullYear() && viewMonth === new Date().getMonth();
-            const lastDayToDraw = isCurrentMonth ? new Date().getDate() : daysInMonth;
+        } else {
+            let curr = new Date(startDate);
+            while (curr <= endDate) {
+                const dStr = curr.toLocaleDateString('sv-SE');
+                const label = curr.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                labels.push(label);
 
-            for (let i = 1; i <= lastDayToDraw; i++) {
-                const dStr = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
-                const tempDate = new Date(viewYear, viewMonth, i);
-                labels.push(tempDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
-                const sum = liveSales.filter(s => new Date(s.sale_date).toLocaleDateString('sv-SE') === dStr).reduce((a, b) => a + (parseFloat(b.total_amount) || 0), 0);
-                dataPoints.push(sum);
-            }
-        } else if (currentRange === 'yearly') {
-            for (let i = 11; i >= 0; i--) {
-                const d = new Date();
-                d.setMonth(now.getMonth() - i);
-                const m = d.getMonth();
-                const y = d.getFullYear();
-                labels.push(d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })); 
                 const sum = liveSales.filter(s => {
-                    const sd = new Date(s.sale_date);
-                    return sd.getMonth() === m && sd.getFullYear() === y;
+                    const sd = new Date(s.sale_date).toLocaleDateString('sv-SE');
+                    return sd === dStr;
                 }).reduce((a, b) => a + (parseFloat(b.total_amount) || 0), 0);
+
                 dataPoints.push(sum);
+                curr.setDate(curr.getDate() + 1);
             }
         }
 
-        myChart = new Chart(ctx, {
+        new Chart(ctx, {
             type: 'line',
             data: {
                 labels: labels,
@@ -493,7 +520,7 @@ async function initChart(baseDate = new Date()) {
                     backgroundColor: 'rgba(255, 118, 117, 0.2)',
                     fill: true,
                     tension: 0.4,
-                    pointRadius: currentRange === 'monthly' ? 0 : 3
+                    pointRadius: labels.length > 31 ? 0 : 3
                 }]
             },
             options: {
@@ -501,39 +528,33 @@ async function initChart(baseDate = new Date()) {
                 maintainAspectRatio: false,
                 scales: {
                     y: { beginAtZero: true, ticks: { callback: v => '₱' + v.toLocaleString() } },
-                    x: { ticks: { callback: function(val, index) { return currentRange === 'monthly' ? (index % 5 === 0 ? this.getLabelForValue(val) : '') : this.getLabelForValue(val); } } }
+                    x: { ticks: { callback: function(val, index) { return labels.length > 20 ? (index % Math.ceil(labels.length / 10) === 0 ? this.getLabelForValue(val) : '') : this.getLabelForValue(val); } } }
                 }
             }
         });
     } catch (err) { console.error("Chart load failed:", err); }
 }
 
-function handleChartDateChange(dateValue) {
-    if (!dateValue) return;
-    initChart(new Date(dateValue));
-}
-
 // --- 4. MASTER COMPACT STATISTICS ENGINE ---
-function setStatPeriod(period) {
-    currentStatPeriod = period;
-    document.querySelectorAll('.range-btn').forEach(btn => {
-        btn.style.background = 'transparent';
-        btn.style.color = '#64748b';
-    });
-    
-    const activeBtnMap = { 'day': 'btnStatsDay', 'week': 'btnStatsWeek', 'month': 'btnStatsMonth', 'year': 'btnStatsYear' };
-    const activeBtn = document.getElementById(activeBtnMap[period]);
-    if (activeBtn) {
-        activeBtn.style.background = '#1d2b38';
-        activeBtn.style.color = 'white';
-    }
-    loadStatsEngine();
-}
-
 async function loadStatsEngine() {
-    const masterDateInput = document.getElementById('statsMasterDate');
-    if (!masterDateInput || !masterDateInput.value) return;
-    const baseDate = new Date(masterDateInput.value);
+    const startInput = document.getElementById('statsStartDate');
+    const endInput = document.getElementById('statsEndDate');
+    if (!startInput || !endInput) return;
+
+    const today = new Date();
+    if (!endInput.value) {
+        endInput.value = today.toLocaleDateString('sv-SE');
+    }
+    if (!startInput.value) {
+        const d = new Date();
+        d.setDate(today.getDate() - 30);
+        startInput.value = d.toLocaleDateString('sv-SE');
+    }
+
+    const startDate = new Date(startInput.value);
+    const endDate = new Date(endInput.value);
+    startDate.setHours(0, 0, 0, 0);
+    endDate.setHours(23, 59, 59, 999);
 
     try {
         const [salesRes, prodRes] = await Promise.all([
@@ -543,21 +564,10 @@ async function loadStatsEngine() {
         const allSales = await salesRes.json();
         const dbProducts = await prodRes.json();
 
-        // A. Process Date Filters
+        // A. Filter Sales by Date Range
         const filteredSales = allSales.filter(sale => {
             const saleDate = new Date(sale.sale_date);
-            if (currentStatPeriod === 'day') {
-                return saleDate.toLocaleDateString('sv-SE') === masterDateInput.value;
-            } else if (currentStatPeriod === 'week') {
-                const diffTime = Math.abs(baseDate - saleDate);
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                return diffDays <= 7;
-            } else if (currentStatPeriod === 'month') {
-                return saleDate.getMonth() === baseDate.getMonth() && saleDate.getFullYear() === baseDate.getFullYear();
-            } else if (currentStatPeriod === 'year') {
-                return saleDate.getFullYear() === baseDate.getFullYear();
-            }
-            return true;
+            return saleDate >= startDate && saleDate <= endDate;
         });
 
         // B. Compute Primary Metrics Card Indicators
@@ -567,8 +577,14 @@ async function loadStatsEngine() {
         let totalUnits = 0;
         filteredSales.forEach(s => {
             try {
-                const items = JSON.parse(s.items_json || '[]');
-                items.forEach(i => totalUnits += i.qty);
+                const items = typeof s.items_json === 'string' ? JSON.parse(s.items_json || '[]') : s.items_json;
+                if (Array.isArray(items)) {
+                    items.forEach(i => {
+                        if (i.name !== 'Debt Payment' && !i.isCollection) {
+                            totalUnits += (parseInt(i.qty) || 0);
+                        }
+                    });
+                }
             } catch(e){}
         });
         const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
@@ -578,7 +594,7 @@ async function loadStatsEngine() {
         document.getElementById('totalVolumeReport').innerText = `${totalUnits} units`;
         document.getElementById('marginReport').innerText = `${margin.toFixed(2)}%`;
 
-        // C. Update Children sub-views inside the split panel layout
+        // C. Update Top Items and Consolidated Item Sold Records
         renderTopItems(filteredSales);
         renderEnhancedStats(filteredSales, dbProducts);
 
@@ -593,20 +609,22 @@ function renderTopItems(filteredSales) {
     const map = {};
     filteredSales.forEach(s => {
         try {
-            const items = JSON.parse(s.items_json || '[]');
-            items.forEach(i => { 
-                if (i.name === 'Debt Payment') return;
-                if (i.isCollection === true) return; // 💡 FIXED: Skip rows that are ledger debt payments
-                
-                map[i.name] = (map[i.name] || 0) + i.qty; 
-            });
+            const items = typeof s.items_json === 'string' ? JSON.parse(s.items_json || '[]') : s.items_json;
+            if (Array.isArray(items)) {
+                items.forEach(i => { 
+                    if (i.name === 'Debt Payment') return;
+                    if (i.isCollection === true) return;
+                    
+                    map[i.name] = (map[i.name] || 0) + (parseInt(i.qty) || 0); 
+                });
+            }
         } catch(e){}
     });
 
     const rankedItems = Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 5);
 
     if (rankedItems.length === 0) {
-        list.innerHTML += '<li class="top-item" style="justify-content:center; color:#94a3b8; padding:20px;">No sales records found.</li>';
+        list.innerHTML += '<li class="top-item" style="justify-content:center; color:#94a3b8; padding:20px;">No sales records found for this period.</li>';
         return;
     }
 
@@ -619,8 +637,6 @@ function renderTopItems(filteredSales) {
             </li>`;
     });
 }
-
-
 
 function renderEnhancedStats(filteredSales, dbProducts) {
     const container = document.getElementById('categoryPerformanceAccordion');
@@ -650,13 +666,14 @@ function renderEnhancedStats(filteredSales, dbProducts) {
 
         filteredSales.forEach(sale => {
             let items = [];
-            try { items = JSON.parse(sale.items_json || '[]'); } catch(e){ return; }
+            try { items = typeof sale.items_json === 'string' ? JSON.parse(sale.items_json || '[]') : sale.items_json; } catch(e){ return; }
+            if (!Array.isArray(items)) return;
 
             items.forEach(item => {
                 if (item.name === prod.prod_name) {
-                    if (item.isCollection === true) return; // 💡 FIXED: Skip ledger collections to prevent duplicate ranking weight!
+                    if (item.isCollection === true || item.name === 'Debt Payment') return;
 
-                    const price = parseFloat(item.price) || (prod.orig_price + prod.price_capital);
+                    const price = parseFloat(item.price) || (parseFloat(prod.orig_price || 0) + parseFloat(prod.price_capital || 0));
                     const qty = parseInt(item.qty) || 0;
                     const cost = parseFloat(item.cost) || parseFloat(prod.orig_price) || 0;
 
@@ -679,14 +696,12 @@ function renderEnhancedStats(filteredSales, dbProducts) {
         categoryMap[catName].items.push(itemPerformance);
     });
 
-    // --- SORT CATEGORY FOLDERS AND INTERNAL ITEMS ALPHABETICALLY ---
     const sortedCategories = Object.keys(categoryMap).sort();
 
     container.innerHTML = sortedCategories.map(catName => {
         const catData = categoryMap[catName];
         if (catData.items.length === 0) return '';
 
-        // Sort the internal items list alphabetically by name before mapping to HTML
         catData.items.sort((a, b) => a.name.localeCompare(b.name));
 
         return `
@@ -707,48 +722,28 @@ function renderEnhancedStats(filteredSales, dbProducts) {
                 <div class="category-stat-body ${searchTerm ? '' : 'collapsed-stats'}">
                     ${catData.items.map(item => {
                         const itemTotalQty = Object.values(item.eras).reduce((sum, era) => sum + era.qty, 0);
+                        const itemTotalRevenue = Object.values(item.eras).reduce((sum, era) => sum + era.rev, 0);
+                        const totalProfitVal = item.hasSales ? item.totalItemProfit : 0;
 
                         return `
                             <!-- Record-Keeping Box Card -->
-                            <div class="ledger-record-card" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
-                                
-                                <!-- Top Row: Product Name and Balanced Summary Metrics -->
-                                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #f1f5f9; padding-bottom: 12px;">
+                            <div class="ledger-record-card" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 15px 20px; display: flex; flex-direction: column; gap: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.02); margin-bottom: 10px;">
+
+                                <!-- Product Info and Consolidated Metrics Symmetrical Row -->
+                                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
                                     <div style="display: flex; align-items: center; gap: 12px;">
                                         <div style="background: #f1f5f9; color: #1d2b38; width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; border: 1px solid #e2e8f0;">
                                             <i class="fa-solid fa-box"></i>
                                         </div>
                                         <span style="font-size: 1.2rem; font-weight: 800; color: #1e293b; letter-spacing: -0.3px;">${item.name}</span>
                                     </div>
-                                    <div style="display: flex; gap: 15px; font-size: 0.95rem;">
+                                    <div style="display: flex; gap: 15px; font-size: 0.95rem; align-items: center; flex-wrap: wrap;">
                                         <span style="color: #475569;">Total Sold: <strong style="color: #0f172a; font-size: 1.05rem;">${itemTotalQty} pcs</strong></span>
                                         <span style="color: #64748b;">•</span>
-                                        <span style="color: #475569;">Total Profit: <strong style="color: #10b981; font-size: 1.05rem;">₱${item.totalItemProfit.toFixed(2)}</strong></span>
+                                        <span style="color: #475569;">Total Sales: <strong style="color: #1d2b38; font-size: 1.05rem;">₱${itemTotalRevenue.toFixed(2)}</strong></span>
+                                        <span style="color: #64748b;">•</span>
+                                        <span style="color: #475569;">Total Profit: <strong style="color: #10b981; font-size: 1.05rem;">₱${totalProfitVal.toFixed(2)}</strong></span>
                                     </div>
-                                </div>
-                                
-                                <!-- Bottom Row: Price Breakdown Grid Rows -->
-                                <div style="display: flex; flex-wrap: wrap; gap: 15px;">
-                                    ${item.hasSales ? Object.entries(item.eras).map(([price, data]) => `
-                                        <!-- Price Record Block -->
-                                        <div style="background: #f8fafc; border: 1px solid #edf2f7; border-radius: 10px; padding: 12px 18px; min-width: 160px; flex: 1; max-width: 220px;">
-                                            <div style="color: #64748b; font-weight: bold; font-size: 0.8rem; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.3px;">
-                                                Sold at ₱${parseFloat(price).toFixed(2)}
-                                            </div>
-                                            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 4px;">
-                                                <span style="font-size: 0.85rem; color: #475569;">Quantity:</span>
-                                                <strong style="font-size: 1.1rem; color: #1e293b; font-weight: 800;">${data.qty} pcs</strong>
-                                            </div>
-                                            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 4px;">
-                                                <span style="font-size: 0.85rem; color: #475569;">Total:</span>
-                                                <strong style="font-size: 1.1rem; color: #10b981; font-weight: 800;">₱${data.rev.toFixed(2)}</strong>
-                                            </div>
-                                        </div>
-                                    `).join('') : `
-                                        <div style="color: #94a3b8; font-size: 0.9rem; font-style: italic; padding: 5px 0;">
-                                            No copies of this product were sold during this period.
-                                        </div>
-                                    `}
                                 </div>
                             </div>
                         `;
@@ -758,9 +753,6 @@ function renderEnhancedStats(filteredSales, dbProducts) {
     }).join('') || '<div style="text-align:center; padding:30px; color:#94a3b8;">No results matched search fields.</div>';
 }
 
-
-
-// --- 5. OVERVIEW & REMAINING CORE UI ROUTINES ---
 async function updateOverview() {
     try {
         if (cachedProductsList.length === 0) {
@@ -1147,10 +1139,23 @@ window.onload = () => {
     
   
     
-    const statsInput = document.getElementById('statsMasterDate');
-    if (statsInput) {
-        statsInput.valueAsDate = new Date();
-        setTimeout(() => setStatPeriod('day'), 300);
+    const chartStart = document.getElementById('chartStartDate');
+    const chartEnd = document.getElementById('chartEndDate');
+    const today = new Date();
+    if (chartEnd && !chartEnd.value) chartEnd.value = today.toLocaleDateString('sv-SE');
+    if (chartStart && !chartStart.value) {
+        const d = new Date();
+        d.setDate(today.getDate() - 14);
+        chartStart.value = d.toLocaleDateString('sv-SE');
+    }
+
+    const statsStart = document.getElementById('statsStartDate');
+    const statsEnd = document.getElementById('statsEndDate');
+    if (statsEnd && !statsEnd.value) statsEnd.value = today.toLocaleDateString('sv-SE');
+    if (statsStart && !statsStart.value) {
+        const d = new Date();
+        d.setDate(today.getDate() - 30);
+        statsStart.value = d.toLocaleDateString('sv-SE');
     }
 
     const tick = () => { const ct = document.getElementById('currentTime'); if(ct) ct.innerText = new Date().toLocaleString(); };
@@ -2025,31 +2030,71 @@ function setReportPeriod(period) {
     generateReportEngine();
 }
 
-async function generateReportEngine() {
-    const masterDateInput = document.getElementById('reportMasterDate');
-    const tableBody = document.getElementById('reportTableBody');
-    if (!masterDateInput || !tableBody) return;
-    if (!masterDateInput.value) {
-        masterDateInput.valueAsDate = new Date();
+// Global State for Reports Type Selector
+let currentReportType = 'cash';
+
+function setReportType(type) {
+    currentReportType = type;
+
+    // Update active button styles
+    const btnCash = document.getElementById('btnReportCash');
+    const btnCollections = document.getElementById('btnReportCollections');
+
+    if (btnCash) {
+        btnCash.style.background = type === 'cash' ? '#1d2b38' : 'transparent';
+        btnCash.style.color = type === 'cash' ? 'white' : '#475569';
     }
-    const baseDate = new Date(masterDateInput.value);
+    if (btnCollections) {
+        btnCollections.style.background = type === 'collections' ? '#1d2b38' : 'transparent';
+        btnCollections.style.color = type === 'collections' ? 'white' : '#475569';
+    }
+
+    generateReportEngine();
+}
+
+async function generateReportEngine() {
+    const startInput = document.getElementById('reportStartDate');
+    const endInput = document.getElementById('reportEndDate');
+    const tableBody = document.getElementById('reportTableBody');
+    const tableHeader = document.getElementById('reportTableHeader');
+    if (!startInput || !endInput || !tableBody || !tableHeader) return;
+
+    const today = new Date();
+    if (!startInput.value) {
+        startInput.value = today.toLocaleDateString('sv-SE');
+    }
+    if (!endInput.value) {
+        endInput.value = today.toLocaleDateString('sv-SE');
+    }
+
+    const startDate = new Date(startInput.value);
+    const endDate = new Date(endInput.value);
+    startDate.setHours(0,0,0,0);
+    endDate.setHours(23,59,59,999);
 
     // Update document generated date/time
     document.getElementById('reportGenTime').innerText = new Date().toLocaleString();
     document.getElementById('reportOperatorEmail').innerText = localStorage.getItem('currentUser') || 'system@weljo.com';
 
-    // Format Period Header Text
+    // Update Report Document Title dynamically based on report type selection
+    const docTitle = document.getElementById('reportDocumentTitle');
+    if (docTitle) {
+        if (currentReportType === 'cash') {
+            docTitle.innerText = "Sales Performance Report";
+        } else if (currentReportType === 'collections') {
+            docTitle.innerText = "Cash Collections Report";
+        }
+    }
+
+    // Format Period Header Text (clean and short date format to prevent page overflow)
     let rangeText = "";
-    const dateFormatted = new Date(masterDateInput.value).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
-    if (currentReportPeriod === 'day') {
-        rangeText = `Daily Report (${dateFormatted})`;
-    } else if (currentReportPeriod === 'week') {
-        rangeText = `Weekly Performance Report (Last 7 Days from ${dateFormatted})`;
-    } else if (currentReportPeriod === 'month') {
-        const monthFormatted = new Date(masterDateInput.value).toLocaleDateString(undefined, { year: 'numeric', month: 'long' });
-        rangeText = `Monthly Summary Report (${monthFormatted})`;
-    } else if (currentReportPeriod === 'year') {
-        rangeText = `Annual Corporate Report (Year ${baseDate.getFullYear()})`;
+    const startFormatted = startDate.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+    const endFormatted = endDate.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+
+    if (startInput.value === endInput.value) {
+        rangeText = startFormatted;
+    } else {
+        rangeText = `${startFormatted} - ${endFormatted}`;
     }
     document.getElementById('reportPeriodText').innerText = rangeText;
 
@@ -2063,110 +2108,221 @@ async function generateReportEngine() {
         const allSales = await salesRes.json();
         const dbProducts = await prodRes.json();
 
-        // 1. Filter Transactions by Period Selection
-        const filteredSales = allSales.filter(sale => {
-            const saleDate = new Date(sale.sale_date);
-            if (currentReportPeriod === 'day') {
-                return saleDate.toLocaleDateString('sv-SE') === masterDateInput.value;
-            } else if (currentReportPeriod === 'week') {
-                const diffTime = Math.abs(baseDate - saleDate);
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                return diffDays <= 7;
-            } else if (currentReportPeriod === 'month') {
-                return saleDate.getMonth() === baseDate.getMonth() && saleDate.getFullYear() === baseDate.getFullYear();
-            } else if (currentReportPeriod === 'year') {
-                return saleDate.getFullYear() === baseDate.getFullYear();
-            }
-            return true;
-        });
-
-        // 2. Map item quantities, revenues and profits based on historical transactions
-        const itemMap = {};
-        filteredSales.forEach(sale => {
-            let items = [];
-            try { 
-                items = typeof sale.items_json === 'string' ? JSON.parse(sale.items_json) : sale.items_json; 
-            } catch(e){ return; }
-            if (!items || !Array.isArray(items)) return;
-
-            items.forEach(i => {
-                if (i.name === 'Debt Payment' || i.isCollection === true) return;
-                const name = i.name;
-                const qty = parseInt(i.qty) || 0;
-                
-                // Read historical checkout values
-                const price = parseFloat(i.price) || 0;
-                const cost = parseFloat(i.cost) || 0;
-
-                if (!itemMap[name]) {
-                    itemMap[name] = { qty: 0, gross: 0, profit: 0, price: price, cost: cost };
-                }
-
-                itemMap[name].qty += qty;
-                if (itemMap[name].price === 0 && price > 0) itemMap[name].price = price;
-                if (itemMap[name].cost === 0 && cost > 0) itemMap[name].cost = cost;
-
-                itemMap[name].gross += (price * qty);
-                itemMap[name].profit += ((price - cost) * qty);
-            });
-        });
-
-        // 3. Fallback to catalog prices for older pre-existing transactions lacking historical JSON properties
-        Object.keys(itemMap).forEach(name => {
-            const p = dbProducts.find(prod => prod.prod_name === name);
-            if (p) {
-                const price = p.orig_price + p.price_capital;
-                const cost = p.orig_price;
-                if (itemMap[name].price === 0) {
-                    itemMap[name].price = price;
-                    itemMap[name].gross = price * itemMap[name].qty;
-                }
-                if (itemMap[name].cost === 0) {
-                    itemMap[name].cost = cost;
-                    itemMap[name].profit = (price - cost) * itemMap[name].qty;
-                }
-            }
-        });
-
-        // 4. Render Table Body Rows
-        let tableHtml = '';
-        let totalQty = 0;
-        let totalGross = 0;
-        let totalProfit = 0;
-
-        const sortedItems = Object.entries(itemMap).sort((a, b) => a[0].localeCompare(b[0]));
-        sortedItems.forEach(([name, data]) => {
-            totalQty += data.qty;
-            totalGross += data.gross;
-            totalProfit += data.profit;
-
-            tableHtml += `
-                <tr style="border-bottom: 1px solid #e2e8f0;">
-                    <td style="padding: 12px 5px; font-weight: 600; color: #1e293b;">${name}</td>
-                    <td style="padding: 12px 5px; text-align: center; font-weight: 700;">${data.qty} pcs</td>
-                    <td style="padding: 12px 5px; text-align: right; color: #475569;">₱${data.price.toFixed(2)}</td>
-                    <td style="padding: 12px 5px; text-align: right; font-weight: 800; color: #0f172a;">₱${data.gross.toFixed(2)}</td>
-                    <td style="padding: 12px 5px; text-align: right; font-weight: 800; color: #10b981;">₱${data.profit.toFixed(2)}</td>
-                </tr>
+        // --- 1. DIRECT SALES (CASH) REPORT TYPE ---
+        if (currentReportType === 'cash') {
+            tableHeader.innerHTML = `
+                <th style="padding: 10px 5px; width: 40%;">PRODUCT NAME</th>
+                <th style="padding: 10px 5px; width: 15%; text-align: center;">QTY SOLD</th>
+                <th style="padding: 10px 5px; width: 15%; text-align: right;">UNIT PRICE</th>
+                <th style="padding: 10px 5px; width: 15%; text-align: right;">GROSS SALES</th>
+                <th style="padding: 10px 5px; width: 15%; text-align: right;">NET PROFIT</th>
             `;
-        });
 
-        if (tableHtml === '') {
-            tableHtml = `<tr><td colspan="5" style="text-align: center; padding: 40px; color: #94a3b8; font-style: italic;"><i class="fa-solid fa-receipt" style="display:block; font-size:1.8rem; margin-bottom:10px;"></i> No sales recorded for this period range.</td></tr>`;
+            document.getElementById('reportMetric1Label').innerText = "Total Items Sold";
+            document.getElementById('reportMetric2Label').innerText = "Gross Revenue";
+            document.getElementById('reportMetric3Label').innerText = "Total Profit";
+            document.getElementById('reportMetric4Label').innerText = "Profit Margin";
+            document.getElementById('reportTotalProfit').style.color = "#10b981";
+            document.getElementById('reportTotalMargin').style.color = "#f59e0b";
+
+            const filteredSales = allSales.filter(sale => {
+                const saleDate = new Date(sale.sale_date);
+                return saleDate >= startDate && saleDate <= endDate;
+            });
+
+            const itemMap = {};
+            filteredSales.forEach(sale => {
+                let items = [];
+                try {
+                    items = typeof sale.items_json === 'string' ? JSON.parse(sale.items_json) : sale.items_json;
+                } catch(e){ return; }
+                if (!items || !Array.isArray(items)) return;
+
+                items.forEach(i => {
+                    if (i.name === 'Debt Payment' || i.isCollection === true) return;
+                    const name = i.name;
+                    const qty = parseInt(i.qty) || 0;
+                    const price = parseFloat(i.price) || 0;
+                    const cost = parseFloat(i.cost) || 0;
+
+                    if (!itemMap[name]) {
+                        itemMap[name] = { qty: 0, gross: 0, profit: 0, price: price, cost: cost };
+                    }
+                    itemMap[name].qty += qty;
+                    if (itemMap[name].price === 0 && price > 0) itemMap[name].price = price;
+                    if (itemMap[name].cost === 0 && cost > 0) itemMap[name].cost = cost;
+                    itemMap[name].gross += (price * qty);
+                    itemMap[name].profit += ((price - cost) * qty);
+                });
+            });
+
+            Object.keys(itemMap).forEach(name => {
+                const p = dbProducts.find(prod => prod.prod_name === name);
+                if (p) {
+                    const price = p.orig_price + p.price_capital;
+                    const cost = p.orig_price;
+                    if (itemMap[name].price === 0) {
+                        itemMap[name].price = price;
+                        itemMap[name].gross = price * itemMap[name].qty;
+                    }
+                    if (itemMap[name].cost === 0) {
+                        itemMap[name].cost = cost;
+                        itemMap[name].profit = (price - cost) * itemMap[name].qty;
+                    }
+                }
+            });
+
+            let tableHtml = '';
+            let totalQty = 0;
+            let totalGross = 0;
+            let totalProfit = 0;
+
+            const sortedItems = Object.entries(itemMap).sort((a, b) => a[0].localeCompare(b[0]));
+            sortedItems.forEach(([name, data]) => {
+                totalQty += data.qty;
+                totalGross += data.gross;
+                totalProfit += data.profit;
+
+                tableHtml += `
+                    <tr style="border-bottom: 1px solid #e2e8f0;">
+                        <td style="padding: 12px 5px; font-weight: 600; color: #1e293b;">${name}</td>
+                        <td style="padding: 12px 5px; text-align: center; font-weight: 700;">${data.qty} pcs</td>
+                        <td style="padding: 12px 5px; text-align: right; color: #475569;">₱${data.price.toFixed(2)}</td>
+                        <td style="padding: 12px 5px; text-align: right; font-weight: 800; color: #0f172a;">₱${data.gross.toFixed(2)}</td>
+                        <td style="padding: 12px 5px; text-align: right; font-weight: 800; color: #10b981;">₱${data.profit.toFixed(2)}</td>
+                    </tr>
+                `;
+            });
+
+            if (tableHtml === '') {
+                tableHtml = `<tr><td colspan="5" style="text-align: center; padding: 40px; color: #94a3b8; font-style: italic;"><i class="fa-solid fa-receipt" style="display:block; font-size:1.8rem; margin-bottom:10px;"></i> No sales recorded for this period.</td></tr>`;
+            }
+            tableBody.innerHTML = tableHtml;
+
+            document.getElementById('reportTotalQty').innerText = `${totalQty} pcs`;
+            document.getElementById('reportTotalGross').innerText = `₱${totalGross.toFixed(2)}`;
+            document.getElementById('reportTotalProfit').innerText = `₱${totalProfit.toFixed(2)}`;
+            const margin = totalGross > 0 ? (totalProfit / totalGross) * 100 : 0;
+            document.getElementById('reportTotalMargin').innerText = `${margin.toFixed(2)}%`;
         }
 
-        tableBody.innerHTML = tableHtml;
+        // --- 2. CASH COLLECTIONS REPORT TYPE ---
+        else if (currentReportType === 'collections') {
+            tableHeader.innerHTML = `
+                <th style="padding: 10px 5px; width: 18%;">DATE PAID</th>
+                <th style="padding: 10px 5px; width: 22%;">CUSTOMER NAME</th>
+                <th style="padding: 10px 5px; width: 38%;">ITEMS SETTLED</th>
+                <th style="padding: 10px 5px; width: 12%; text-align: right;">CASH RECEIVED</th>
+                <th style="padding: 10px 5px; width: 10%; text-align: right;">PROFIT REALIZED</th>
+            `;
 
-        // 5. Update grand total metrics indicators
-        document.getElementById('reportTotalQty').innerText = `${totalQty} pcs`;
-        document.getElementById('reportTotalGross').innerText = `₱${totalGross.toFixed(2)}`;
-        document.getElementById('reportTotalProfit').innerText = `₱${totalProfit.toFixed(2)}`;
-        const margin = totalGross > 0 ? (totalProfit / totalGross) * 100 : 0;
-        document.getElementById('reportTotalMargin').innerText = `${margin.toFixed(2)}%`;
+            document.getElementById('reportMetric1Label').innerText = "Payments Received";
+            document.getElementById('reportMetric2Label').innerText = "Cash Collected";
+            document.getElementById('reportMetric3Label').innerText = "Profit Realized";
+            document.getElementById('reportMetric4Label').innerText = "Realization Rate";
+            document.getElementById('reportTotalProfit').style.color = "#10b981";
+            document.getElementById('reportTotalMargin').style.color = "#f59e0b";
+
+            const utangRes = await fetch('http://localhost:3000/api/get-all-utang');
+            const allUtang = await utangRes.json();
+
+            // Dynamic FIFO mapping to map payment rows to products settled
+            const customers = [...new Set(allUtang.map(u => u.customer_name))];
+            const paymentSettlements = {};
+
+            customers.forEach(cust => {
+                const custTx = allUtang.filter(u => u.customer_name === cust).reverse(); // oldest first
+                const debts = custTx.filter(u => !u.items_list.includes("Debt Payment"));
+                const payments = custTx.filter(u => u.items_list.includes("Debt Payment"));
+
+                let debtQueue = debts.map(d => {
+                    let items = [];
+                    try {
+                        items = JSON.parse(d.items_list);
+                    } catch(e) {}
+                    return {
+                        utang_id: d.utang_id,
+                        amount: parseFloat(d.amount),
+                        items: Array.isArray(items) ? items : [{ name: d.items_list, qty: 1 }],
+                        remainingUnpaid: parseFloat(d.amount)
+                    };
+                });
+
+                payments.forEach(pay => {
+                    let payAmt = parseFloat(pay.amount);
+                    let settled = [];
+
+                    for (let d of debtQueue) {
+                        if (payAmt <= 0) break;
+                        if (d.remainingUnpaid <= 0) continue;
+
+                        let covered = 0;
+                        if (payAmt >= d.remainingUnpaid) {
+                            covered = d.remainingUnpaid;
+                            payAmt -= d.remainingUnpaid;
+                            d.remainingUnpaid = 0;
+                        } else {
+                            covered = payAmt;
+                            d.remainingUnpaid -= payAmt;
+                            payAmt = 0;
+                        }
+
+                        if (covered > 0) {
+                            const ratio = covered / d.amount;
+                            d.items.forEach(item => {
+                                let q = Math.round((item.qty || 1) * ratio);
+                                if (q === 0 && ratio > 0) q = 1;
+                                settled.push(`${q}x ${item.name || item}`);
+                            });
+                        }
+                    }
+
+                    paymentSettlements[pay.utang_id] = settled.length > 0 ? settled.join(', ') : 'Debt Balance Settlement';
+                });
+            });
+
+            // Filter payment events in period
+            const periodPayments = allUtang.filter(tx => {
+                if (!tx.items_list.includes("Debt Payment")) return false;
+                const d = new Date(tx.date_borrowed);
+                return d >= startDate && d <= endDate;
+            });
+
+            let tableHtml = '';
+            let totalCollected = 0;
+            let totalProfitRealized = 0;
+
+            periodPayments.forEach(tx => {
+                const amt = parseFloat(tx.amount);
+                const prof = parseFloat(tx.profit) || 0;
+                totalCollected += amt;
+                totalProfitRealized += prof;
+
+                tableHtml += `
+                    <tr style="border-bottom: 1px solid #e2e8f0;">
+                        <td style="padding: 12px 5px; color: #475569;">${new Date(tx.date_borrowed).toLocaleDateString()}</td>
+                        <td style="padding: 12px 5px; font-weight: 600; color: #1e293b;">${tx.customer_name}</td>
+                        <td style="padding: 12px 5px; color: #475569; font-size: 0.8rem;">${paymentSettlements[tx.utang_id] || 'Debt Balance Settlement'}</td>
+                        <td style="padding: 12px 5px; text-align: right; font-weight: 800; color: #0f172a;">₱${amt.toFixed(2)}</td>
+                        <td style="padding: 12px 5px; text-align: right; font-weight: 800; color: #10b981;">₱${prof.toFixed(2)}</td>
+                    </tr>
+                `;
+            });
+
+            if (tableHtml === '') {
+                tableHtml = `<tr><td colspan="5" style="text-align: center; padding: 40px; color: #94a3b8; font-style: italic;"><i class="fa-solid fa-receipt" style="display:block; font-size:1.8rem; margin-bottom:10px;"></i> No cash collections recorded for this period.</td></tr>`;
+            }
+            tableBody.innerHTML = tableHtml;
+
+            document.getElementById('reportTotalQty').innerText = `${periodPayments.length} payments`;
+            document.getElementById('reportTotalGross').innerText = `₱${totalCollected.toFixed(2)}`;
+            document.getElementById('reportTotalProfit').innerText = `₱${totalProfitRealized.toFixed(2)}`;
+            const rate = totalCollected > 0 ? (totalProfitRealized / totalCollected) * 100 : 0;
+            document.getElementById('reportTotalMargin').innerText = `${rate.toFixed(2)}%`;
+        }
 
     } catch (err) {
         console.error("Report generation failed:", err);
         tableBody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 30px; color: #ef4444; font-weight: 600;">Failed to fetch transactional streams from database.</td></tr>';
     }
 }
-
