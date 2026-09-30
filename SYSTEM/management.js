@@ -1179,25 +1179,56 @@ async function openUtangModal() {
 function closeUtangModal() { const m = document.getElementById('utangModal'); if(m) m.style.display = 'none'; document.getElementById('utangForm').reset(); }
 async function searchProducts(query) {
     const dropdown = document.getElementById('searchResults');
+    if (!dropdown) return;
     if (!query || query.trim() === "") { dropdown.style.display = 'none'; return; }
     try {
-        const res = await fetch('http://localhost:3000/api/products');
-        const products = await res.json();
-        const filtered = products.filter(p => p.prod_name && p.prod_name.toLowerCase().includes(query.toLowerCase()));
+        if (cachedProductsList.length === 0) {
+            await loadProductsCache();
+        }
+        const products = cachedProductsList.length > 0 ? cachedProductsList : await (await fetch('http://localhost:3000/api/products')).json();
+        const filtered = products.filter(p => p.prod_name && p.prod_name.toLowerCase().includes(query.toLowerCase()) && !p.is_archived);
         if (filtered.length > 0) {
             dropdown.innerHTML = filtered.map(p => {
-                const price = p.orig_price + p.price_capital;
-                return `<div class="search-item" onclick='addProdToUtang(${JSON.stringify({id: p.prod_id, name: p.prod_name, price, cost: p.orig_price})})'><span>${p.prod_name}</span><strong>₱${price.toFixed(2)}</strong></div>`;
+                const price = parseFloat(p.orig_price || 0) + parseFloat(p.price_capital || 0);
+                return `<div class="search-item" onclick="addProdToUtangById(${p.prod_id})"><span>${p.prod_name}</span><strong>₱${price.toFixed(2)}</strong></div>`;
             }).join('');
             dropdown.style.display = 'block';
-        } else { dropdown.style.display = 'none'; }
-    } catch(e){}
+        } else { 
+            dropdown.style.display = 'none'; 
+        }
+    } catch(e){
+        console.error("searchProducts error:", e);
+    }
 }
+
+async function addProdToUtangById(prodId) {
+    if (cachedProductsList.length === 0) {
+        await loadProductsCache();
+    }
+    const p = cachedProductsList.find(item => item.prod_id === prodId || item.id === prodId);
+    if (!p) return;
+    const price = parseFloat(p.orig_price || 0) + parseFloat(p.price_capital || 0);
+    const prodObj = {
+        id: p.prod_id || p.id,
+        name: p.prod_name,
+        price: price,
+        cost: parseFloat(p.orig_price || 0)
+    };
+    addProdToUtang(prodObj);
+}
+
 function addProdToUtang(p) {
+    if (!p) return;
     const existing = selectedUtangItems.find(item => item.id === p.id);
-    if (existing) { existing.qty++; } else { selectedUtangItems.push({...p, qty: 1}); }
-    document.getElementById('itemSearch').value = '';
-    document.getElementById('searchResults').style.display = 'none';
+    if (existing) { 
+        existing.qty++; 
+    } else { 
+        selectedUtangItems.push({...p, qty: 1}); 
+    }
+    const itemSearch = document.getElementById('itemSearch');
+    if (itemSearch) itemSearch.value = '';
+    const searchResults = document.getElementById('searchResults');
+    if (searchResults) searchResults.style.display = 'none';
     refreshUtangUI();
 }
 function refreshUtangUI() {
