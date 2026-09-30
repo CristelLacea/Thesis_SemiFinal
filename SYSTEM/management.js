@@ -1683,43 +1683,51 @@ async function openEditModal(user) {
 
 // Validation Helper Function
 function validateUserInputs(email, fname, mi, lname, contact, address) {
-    if (!email.trim() || !fname.trim() || !lname.trim() || !contact.trim() || !address.trim()) {
-        alert("All fields except Middle Initial are required!");
+    const trimmedEmail = (email || '').trim();
+    const trimmedFname = (fname || '').trim();
+    const trimmedLname = (lname || '').trim();
+    const trimmedMi = (mi || '').trim();
+    const trimmedContact = (contact || '').trim();
+    const trimmedAddress = (address || '').trim();
+
+    if (!trimmedEmail || !trimmedFname || !trimmedLname || !trimmedContact || !trimmedAddress) {
+        alert("Validation Error: All fields except Middle Initial are required!");
         return false;
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email.trim())) {
-        alert("Please enter a valid email address!");
+    const emailRegex = /^[a-z0-9._%+-]+@weljo\.com$/i;
+    if (!emailRegex.test(trimmedEmail)) {
+        alert("Security Restriction: Staff accounts must use the official corporate email domain (@weljo.com)!");
         return false;
     }
 
-    if (!email.trim().toLowerCase().endsWith("@weljo.com")) {
-        alert("Staff accounts must use the official corporate email domain (@weljo.com)!");
+    const nameRegex = /^[A-Za-z\s\-]{2,50}$/;
+    if (!nameRegex.test(trimmedFname)) {
+        alert("Validation Error: First Name must contain only letters, spaces, or hyphens (2 to 50 characters)!");
+        return false;
+    }
+    if (!nameRegex.test(trimmedLname)) {
+        alert("Validation Error: Last Name must contain only letters, spaces, or hyphens (2 to 50 characters)!");
         return false;
     }
 
-    const nameRegex = /^[A-Za-z\s\-]+$/;
-    if (!nameRegex.test(fname.trim())) {
-        alert("First Name must contain only letters, spaces, or hyphens!");
-        return false;
-    }
-    if (!nameRegex.test(lname.trim())) {
-        alert("Last Name must contain only letters, spaces, or hyphens!");
-        return false;
-    }
-
-    if (mi.trim()) {
+    if (trimmedMi) {
         const miRegex = /^[A-Za-z]{1,2}$/;
-        if (!miRegex.test(mi.trim())) {
-            alert("Middle Initial must contain only 1 or 2 letters!");
+        if (!miRegex.test(trimmedMi)) {
+            alert("Validation Error: Middle Initial must contain only 1 or 2 letters!");
             return false;
         }
     }
 
-    const contactRegex = /^[0-9]{10,12}$/;
-    if (!contactRegex.test(contact.trim())) {
-        alert("Contact number must be numeric (10 to 12 digits)!");
+    // Strict Philippine Mobile Number: must start with 09 and be exactly 11 digits
+    const contactRegex = /^09\d{9}$/;
+    if (!contactRegex.test(trimmedContact)) {
+        alert("Validation Error: Contact number must be a valid 11-digit Philippine mobile number starting with 09 (e.g., 09123456789)!");
+        return false;
+    }
+
+    if (trimmedAddress.length < 3 || trimmedAddress.length > 150) {
+        alert("Validation Error: Address must be between 3 and 150 characters!");
         return false;
     }
 
@@ -1736,8 +1744,32 @@ document.getElementById('editUserForm').addEventListener('submit', async (e) => 
     const contact = document.getElementById('editContact').value;
     const address = document.getElementById('editAddress').value;
     const role = document.getElementById('editRole').value;
+    const currentLoggedInUser = localStorage.getItem('currentUser') || '';
 
     if (!validateUserInputs(email, fname, mi, lname, contact, address)) return;
+
+    // Fresh check on existing users for self-demotion & last admin protection
+    let freshUsers = [];
+    try {
+        const r = await fetch('http://localhost:3000/api/users');
+        freshUsers = await r.json();
+    } catch (e) {}
+
+    const targetUser = freshUsers.find(u => String(u.id) === String(id));
+    if (targetUser) {
+        // Trapping 1: If current logged-in user is demoting themselves from Admin to Cashier
+        if (targetUser.email.toLowerCase() === currentLoggedInUser.toLowerCase() && targetUser.role.toLowerCase() === 'admin' && role.toLowerCase() !== 'admin') {
+            return alert("Security Protection: You cannot demote your own account from Admin to Cashier!");
+        }
+
+        // Trapping 2: If demoting the last active Admin
+        if (targetUser.role.toLowerCase() === 'admin' && role.toLowerCase() !== 'admin') {
+            const activeAdmins = freshUsers.filter(u => u.role.toLowerCase() === 'admin' && u.account_state !== 'INACTIVE' && u.account_state !== 'BANNED');
+            if (activeAdmins.length <= 1) {
+                return alert("Security Protection: Cannot demote the last remaining active Admin in the system!");
+            }
+        }
+    }
 
     const userData = { email, fname, mi, lname, contact, address, role };
 
@@ -1747,12 +1779,12 @@ document.getElementById('editUserForm').addEventListener('submit', async (e) => 
         body: JSON.stringify(userData)
     });
     
+    const data = await res.json();
     if (res.ok) {
         alert("User details updated successfully!");
         closeModalByName('editUserModal');
         renderUserList();
     } else {
-        const data = await res.json();
         alert("Failed to update user: " + (data.error || "Server error"));
     }
 });
@@ -1760,18 +1792,46 @@ document.getElementById('editUserForm').addEventListener('submit', async (e) => 
 async function deactivateUser(id, currentStatus) {
     const isInactive = currentStatus === 'INACTIVE' || currentStatus === 'BANNED';
     const newStatus = isInactive ? 'ACTIVE' : 'INACTIVE';
-    
+    const currentLoggedInUser = localStorage.getItem('currentUser') || '';
+
+    // Fetch fresh users to verify roles & active counts
+    let freshUsers = [];
+    try {
+        const r = await fetch('http://localhost:3000/api/users');
+        freshUsers = await r.json();
+    } catch (e) {}
+
+    const targetUser = freshUsers.find(u => String(u.id) === String(id));
+    if (!targetUser) return alert("User not found.");
+
     if (!isInactive) {
-        if (!confirm("Are you sure you want to deactivate this staff account? They will lose login access, but all their transaction history logs will remain safely intact.")) {
+        // Trapping 1: Prevent self-deactivation
+        if (targetUser.email.toLowerCase() === currentLoggedInUser.toLowerCase()) {
+            return alert("Security Protection: You cannot deactivate your own logged-in admin account!");
+        }
+
+        // Trapping 2: Prevent deactivating the last active admin
+        if (targetUser.role.toLowerCase() === 'admin') {
+            const activeAdmins = freshUsers.filter(u => u.role.toLowerCase() === 'admin' && u.account_state !== 'INACTIVE' && u.account_state !== 'BANNED');
+            if (activeAdmins.length <= 1) {
+                return alert("Security Protection: Cannot deactivate the last remaining active Admin in the system!");
+            }
+        }
+
+        if (!confirm(`Are you sure you want to deactivate ${targetUser.first_name} ${targetUser.last_name}? They will lose login access, but all their transaction history logs will remain safely intact.`)) {
             return;
         }
     }
     
-    await fetch(`http://localhost:3000/api/update-user-status/${id}`, {
+    const res = await fetch(`http://localhost:3000/api/update-user-status/${id}`, {
         method: 'PUT',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ status: newStatus })
     });
+    const data = await res.json();
+    if (!res.ok) {
+        alert("Operation failed: " + (data.error || "Server error"));
+    }
     renderUserList();
 }
 
@@ -1799,12 +1859,12 @@ document.getElementById('userForm')?.addEventListener('submit', async (e) => {
 
     if (!validateUserInputs(email, fname, mi, lname, contact, address)) return;
 
-    if (pass !== confirmPass) return alert("Passwords do not match!");
+    if (pass !== confirmPass) return alert("Security Error: Passwords do not match!");
 
     // Password strength check (at least 8 characters, containing both letters and numbers)
-    const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
+    const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d).{8,64}$/;
     if (!passwordRegex.test(pass)) {
-        return alert("Password must be at least 8 characters long and contain both letters and numbers!");
+        return alert("Security Requirement: Password must be at least 8 characters long and contain both letters and numbers!");
     }
 
     const userData = { email, fname, mi, lname, contact, address, password: pass, role };

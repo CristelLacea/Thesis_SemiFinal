@@ -516,12 +516,29 @@ app.get('/api/users', (req, res) => {
 app.post('/api/add-user', (req, res) => {
     const { email, fname, mi, lname, contact, address, password, role } = req.body;
     
+    // Server-side Defense-in-Depth validation
+    if (!email || !fname || !lname || !contact || !address || !password || !role) {
+        return res.status(400).json({ error: "All required fields must be provided." });
+    }
+    if (!email.toLowerCase().endsWith("@weljo.com")) {
+        return res.status(400).json({ error: "Staff accounts must use the official corporate email domain (@weljo.com)." });
+    }
+    if (!/^09\d{9}$/.test(contact.trim())) {
+        return res.status(400).json({ error: "Contact must be a valid 11-digit Philippine mobile number starting with 09." });
+    }
+    if (!/^(?=.*[A-Za-z])(?=.*\d).{8,64}$/.test(password)) {
+        return res.status(400).json({ error: "Password must be at least 8 characters long and contain both letters and numbers." });
+    }
+
     const sql = `INSERT INTO users 
                 (email, first_name, middle_initial, last_name, contact_number, address, password, role, account_state) 
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'ACTIVE')`;
     
-    db.query(sql, [email, fname, mi, lname, contact, address, password, role], (err, result) => {
+    db.query(sql, [email.trim().toLowerCase(), fname.trim(), (mi || '').trim().toUpperCase(), lname.trim(), contact.trim(), address.trim(), password, role], (err, result) => {
         if (err) {
+            if (err.message && err.message.includes("unique")) {
+                return res.status(400).json({ error: "This email address is already registered!" });
+            }
             console.error("Database Error:", err);
             return res.status(500).json({ error: err.message });
         }
@@ -532,26 +549,81 @@ app.post('/api/add-user', (req, res) => {
 
 app.put('/api/update-user-status/:id', (req, res) => {
     const { status } = req.body; 
-    db.query("UPDATE users SET account_state = $1 WHERE id = $2", [status, req.params.id], (err) => {
-        if (err) {
-            console.error("Database Update Error:", err);
-            return res.status(500).send(err);
+    const userId = req.params.id;
+
+    // Check if target is last active admin before deactivating
+    db.query("SELECT * FROM users WHERE id = $1", [userId], (findErr, findResult) => {
+        if (findErr) return res.status(500).send(findErr);
+        if (!findResult || findResult.rows.length === 0) return res.status(404).json({ error: "User not found." });
+        
+        const targetUser = findResult.rows[0];
+        if (status === 'INACTIVE' && targetUser.role.toLowerCase() === 'admin') {
+            db.query("SELECT COUNT(*) as count FROM users WHERE LOWER(role) = 'admin' AND account_state = 'ACTIVE'", (countErr, countResult) => {
+                if (!countErr && countResult && parseInt(countResult.rows[0].count) <= 1) {
+                    return res.status(400).json({ error: "Security Protection: Cannot deactivate the last remaining active Admin in the system!" });
+                }
+                
+                db.query("UPDATE users SET account_state = $1 WHERE id = $2", [status, userId], (err) => {
+                    if (err) return res.status(500).send(err);
+                    logActivity(req.userEmail, "Update Staff Status", `Updated status of user ID ${userId} (${targetUser.email}) to ${status}`);
+                    res.json({ message: "Status updated!" });
+                });
+            });
+        } else {
+            db.query("UPDATE users SET account_state = $1 WHERE id = $2", [status, userId], (err) => {
+                if (err) return res.status(500).send(err);
+                logActivity(req.userEmail, "Update Staff Status", `Updated status of user ID ${userId} (${targetUser.email}) to ${status}`);
+                res.json({ message: "Status updated!" });
+            });
         }
-        logActivity(req.userEmail, "Update Staff Status", `Updated status of user ID ${req.params.id} to ${status}`);
-        res.json({ message: "Status updated!" });
     });
 });
 
 app.put('/api/update-user/:id', (req, res) => {
     const { fname, mi, lname, contact, address, email, role } = req.body;
-    const sql = `UPDATE users 
-                 SET first_name=$1, middle_initial=$2, last_name=$3, contact_number=$4, address=$5, email=$6, role=$7 
-                 WHERE id=$8`;
-    
-    db.query(sql, [fname, mi, lname, contact, address, email, role, req.params.id], (err) => {
-        if (err) return res.status(500).send(err);
-        logActivity(req.userEmail, "Update Staff Profile", `Updated profile details of user ID ${req.params.id}: ${email}`);
-        res.json({ message: "User updated successfully!" });
+    const userId = req.params.id;
+
+    if (!email || !fname || !lname || !contact || !address || !role) {
+        return res.status(400).json({ error: "All required fields must be provided." });
+    }
+    if (!email.toLowerCase().endsWith("@weljo.com")) {
+        return res.status(400).json({ error: "Staff accounts must use the official corporate email domain (@weljo.com)." });
+    }
+    if (!/^09\d{9}$/.test(contact.trim())) {
+        return res.status(400).json({ error: "Contact must be a valid 11-digit Philippine mobile number starting with 09." });
+    }
+
+    // Last admin protection if demoting from Admin to Cashier
+    db.query("SELECT * FROM users WHERE id = $1", [userId], (findErr, findResult) => {
+        if (findErr) return res.status(500).send(findErr);
+        if (!findResult || findResult.rows.length === 0) return res.status(404).json({ error: "User not found." });
+
+        const targetUser = findResult.rows[0];
+        if (targetUser.role.toLowerCase() === 'admin' && role.toLowerCase() !== 'admin') {
+            db.query("SELECT COUNT(*) as count FROM users WHERE LOWER(role) = 'admin' AND account_state = 'ACTIVE'", (countErr, countResult) => {
+                if (!countErr && countResult && parseInt(countResult.rows[0].count) <= 1) {
+                    return res.status(400).json({ error: "Security Protection: Cannot demote the last remaining active Admin in the system!" });
+                }
+
+                const sql = `UPDATE users 
+                             SET first_name=$1, middle_initial=$2, last_name=$3, contact_number=$4, address=$5, email=$6, role=$7 
+                             WHERE id=$8`;
+                db.query(sql, [fname.trim(), (mi || '').trim().toUpperCase(), lname.trim(), contact.trim(), address.trim(), email.trim().toLowerCase(), role, userId], (err) => {
+                    if (err) return res.status(500).send(err);
+                    logActivity(req.userEmail, "Update Staff Profile", `Updated profile details of user ID ${userId}: ${email}`);
+                    res.json({ message: "User updated successfully!" });
+                });
+            });
+        } else {
+            const sql = `UPDATE users 
+                         SET first_name=$1, middle_initial=$2, last_name=$3, contact_number=$4, address=$5, email=$6, role=$7 
+                         WHERE id=$8`;
+            db.query(sql, [fname.trim(), (mi || '').trim().toUpperCase(), lname.trim(), contact.trim(), address.trim(), email.trim().toLowerCase(), role, userId], (err) => {
+                if (err) return res.status(500).send(err);
+                logActivity(req.userEmail, "Update Staff Profile", `Updated profile details of user ID ${userId}: ${email}`);
+                res.json({ message: "User updated successfully!" });
+            });
+        }
     });
 });
 
