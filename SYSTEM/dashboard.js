@@ -32,8 +32,7 @@ document.addEventListener('click', (e) => {
     }
 });
 
-// Auto-notify server on window/tab exit
-window.addEventListener('pagehide', () => {
+const sendExitBeacon = () => {
     if (sessionStorage.getItem('nav_internal')) return;
     const email = localStorage.getItem('currentUser');
     if (!email) return;
@@ -48,14 +47,34 @@ window.addEventListener('pagehide', () => {
     } else {
         fetch(exitUrl, { method: 'POST', body: payload, headers: { 'Content-Type': 'application/json' }, keepalive: true });
     }
+};
+
+window.addEventListener('pagehide', sendExitBeacon);
+window.addEventListener('beforeunload', sendExitBeacon);
+
+document.addEventListener('visibilitychange', () => {
+    const email = localStorage.getItem('currentUser');
+    if (!email) return;
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+    if (document.visibilityState === 'hidden') {
+        sendExitBeacon();
+    } else if (document.visibilityState === 'visible') {
+        const pingUrl = isLocal ? 'http://localhost:3000/api/users/heartbeat' : 'https://thesis-semifinal.onrender.com/api/users/heartbeat';
+        fetch(pingUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-user-email': email },
+            body: JSON.stringify({ email })
+        }).catch(() => {});
+    }
 });
 
-// Start heartbeat while dashboard is open
 function startHeartbeat() {
     const email = localStorage.getItem('currentUser');
     if (!email) return;
     
     const ping = () => {
+        if (document.visibilityState === 'hidden') return;
         fetch('http://localhost:3000/api/users/heartbeat', {
             method: 'POST',
             headers: {
@@ -67,7 +86,7 @@ function startHeartbeat() {
     };
 
     ping();
-    setInterval(ping, 15000);
+    setInterval(ping, 10000);
 }
 startHeartbeat();
 

@@ -72,9 +72,9 @@ const logActivity = (email, action, details) => {
     });
 };
 
-// Background task: Auto-logout inactive users who closed their browser / tab without logging out
+// Background task: Auto-logout inactive users who closed their browser / mobile app without logging out
 setInterval(() => {
-    const inactiveThreshold = new Date(Date.now() - 30000); // 30s without heartbeat
+    const inactiveThreshold = new Date(Date.now() - 20000); // 20s without heartbeat
     const findInactiveSql = `SELECT email FROM users WHERE is_online = TRUE AND last_active < $1`;
     
     db.query(findInactiveSql, [inactiveThreshold], (err, result) => {
@@ -88,7 +88,7 @@ setInterval(() => {
             });
         }
     });
-}, 15000);
+}, 8000);
 
 // --- 1. PRODUCT ROUTES ---
 
@@ -499,8 +499,8 @@ app.put('/api/restore-product/:id', (req, res) => {
 });
 
 app.get('/api/users', (req, res) => {
-    // Automatically mark users as offline if they haven't sent a heartbeat in the last 45 seconds
-    const offlineThreshold = new Date(Date.now() - 45000);
+    // Automatically mark users as offline if they haven't sent a heartbeat in the last 20 seconds
+    const offlineThreshold = new Date(Date.now() - 20000);
     const offlineSql = `UPDATE users SET is_online = FALSE WHERE is_online = TRUE AND last_active < $1`;
     
     db.query(offlineSql, [offlineThreshold], (offlineErr) => {
