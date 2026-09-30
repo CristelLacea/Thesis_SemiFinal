@@ -8,6 +8,7 @@ const bodyParser = require('body-parser');
 const app = express();
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(express.text({ type: ['text/*', 'application/json', '*/*'] }));
 app.use(cors());
 app.use(bodyParser.json());
 
@@ -73,7 +74,7 @@ const logActivity = (email, action, details) => {
 
 // Background task: Auto-logout inactive users who closed their browser / tab without logging out
 setInterval(() => {
-    const inactiveThreshold = new Date(Date.now() - 45000); // 45s without heartbeat
+    const inactiveThreshold = new Date(Date.now() - 30000); // 30s without heartbeat
     const findInactiveSql = `SELECT email FROM users WHERE is_online = TRUE AND last_active < $1`;
     
     db.query(findInactiveSql, [inactiveThreshold], (err, result) => {
@@ -450,6 +451,11 @@ app.post('/api/login', (req, res) => {
             // 1. Check if the user is banned or deactivated
             if (user.account_state && (user.account_state.toUpperCase() === 'BANNED' || user.account_state.toUpperCase() === 'INACTIVE')) {
                 return res.json({ status: "fail", message: "Account is deactivated." });
+            }
+
+            // If user was still marked online from a previous unclosed tab/session, record its closure
+            if (user.is_online) {
+                logActivity(user.email, "Logout", "Previous unclosed session ended by new login");
             }
 
             // 2. Set user as online
