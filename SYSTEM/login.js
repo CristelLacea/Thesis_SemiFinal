@@ -11,11 +11,20 @@ window.fetch = function (url, options = {}) {
     return originalFetch(processedUrl, options);
 };
 
+let isLoggingIn = false;
 document.querySelector('.login-form').addEventListener('submit', function(e) {
     e.preventDefault(); 
+    if (isLoggingIn) return;
     
-    const emailInput = document.getElementById('email').value;
+    const emailInput = document.getElementById('email').value.trim();
     const passwordInput = document.getElementById('password').value;
+    const submitBtn = document.querySelector('.login-btn');
+
+    isLoggingIn = true;
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerText = 'Logging in...';
+    }
 
     fetch('http://localhost:3000/api/login', {
         method: 'POST',
@@ -33,7 +42,6 @@ document.querySelector('.login-form').addEventListener('submit', function(e) {
             localStorage.setItem('currentUser', data.email);
 
             // 2. REDIRECT BASED ON DATABASE ROLE
-            // We use .toLowerCase() to prevent issues with "Admin" vs "admin"
             const role = data.role.toLowerCase();
 
             if (role === 'admin') {
@@ -42,15 +50,21 @@ document.querySelector('.login-form').addEventListener('submit', function(e) {
                 window.location.href = 'cashier.html'; 
             } else {
                 alert("Role not recognized. Contact Admin.");
+                isLoggingIn = false;
+                if (submitBtn) { submitBtn.disabled = false; submitBtn.innerText = 'Login'; }
             }
         } else {
             alert(data.message);
             document.getElementById('password').value = "";
+            isLoggingIn = false;
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.innerText = 'Login'; }
         }
     })
     .catch(error => {
         console.error('Error:', error);
         alert("Cannot connect to server. Is your Node.js running?");
+        isLoggingIn = false;
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.innerText = 'Login'; }
     });
 });
 

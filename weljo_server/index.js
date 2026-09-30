@@ -42,7 +42,7 @@ const getLocalTimestamp = () => {
         second: '2-digit',
         hour12: false
     });
-    return formatter.format(now) + '+08:00';
+    return formatter.format(now).replace(' ', 'T') + '+08:00';
 };
 
 // Middleware to retrieve user email from request headers
@@ -51,13 +51,43 @@ app.use((req, res, next) => {
     next();
 });
 
+// Cache for activity log debouncing (prevents double submits / duplicate network logs within 4s)
+const lastActivityCache = new Map();
 const logActivity = (email, action, details) => {
+    if (!email) return;
+    const cacheKey = `${email}|${action}|${details}`;
+    const now = Date.now();
+    const lastTime = lastActivityCache.get(cacheKey) || 0;
+    
+    if (now - lastTime < 4000) {
+        return; // Deduplicate identical log within 4 seconds
+    }
+    lastActivityCache.set(cacheKey, now);
+
     const timestamp = getLocalTimestamp();
     const sql = `INSERT INTO activity_logs (user_email, action, details, timestamp) VALUES ($1, $2, $3, $4)`;
     db.query(sql, [email, action, details, timestamp], (err) => {
         if (err) console.error("Activity log error:", err.message);
     });
 };
+
+// Background task: Auto-logout inactive users who closed their browser / tab without logging out
+setInterval(() => {
+    const inactiveThreshold = new Date(Date.now() - 45000); // 45s without heartbeat
+    const findInactiveSql = `SELECT email FROM users WHERE is_online = TRUE AND last_active < $1`;
+    
+    db.query(findInactiveSql, [inactiveThreshold], (err, result) => {
+        if (!err && result && result.rows.length > 0) {
+            result.rows.forEach(u => {
+                db.query("UPDATE users SET is_online = FALSE WHERE email = $1 AND is_online = TRUE RETURNING id", [u.email], (updateErr, updateRes) => {
+                    if (!updateErr && updateRes && updateRes.rowCount > 0) {
+                        logActivity(u.email, "Logout", "Session ended (Auto-logout / Inactivity)");
+                    }
+                });
+            });
+        }
+    });
+}, 15000);
 
 // --- 1. PRODUCT ROUTES ---
 
@@ -535,6 +565,24 @@ app.post('/api/users/heartbeat', (req, res) => {
     }
 });
 
+// Endpoint called on window/tab close (beacon or fetch)
+app.post('/api/session-exit', (req, res) => {
+    let email = req.body && req.body.email ? req.body.email : req.userEmail;
+    if (!email && typeof req.body === 'string') {
+        try { email = JSON.parse(req.body).email; } catch(e){}
+    }
+    if (email && email !== 'system@weljo.com') {
+        db.query("UPDATE users SET is_online = FALSE WHERE email = $1 AND is_online = TRUE RETURNING id", [email], (err, result) => {
+            if (!err && result && result.rowCount > 0) {
+                logActivity(email, "Logout", "User closed window / exited website");
+            }
+            res.sendStatus(200);
+        });
+    } else {
+        res.sendStatus(200);
+    }
+});
+
 app.post('/api/logout', (req, res) => {
     const { email } = req.body;
     const userEmail = email || req.userEmail;
@@ -563,18 +611,18 @@ app.get('/api/activity-logs', (req, res) => {
     }
     
     if (category && category.trim() !== "") {
-        sql += ` AND action = $${paramIndex}`;
-        params.push(category.trim());
+        sql += ` AND LOWER(action) LIKE LOWER($${paramIndex})`;
+        params.push(`%${category.trim()}%`);
         paramIndex++;
     }
     
     if (date && date.trim() !== "") {
-        sql += ` AND DATE(timestamp) = $${paramIndex}`;
+        sql += ` AND LEFT(timestamp, 10) = $${paramIndex}`;
         params.push(date.trim());
         paramIndex++;
     }
     
-    sql += " ORDER BY log_id DESC LIMIT 150";
+    sql += " ORDER BY log_id DESC LIMIT 200";
     
     db.query(sql, params, (err, results) => {
         if (err) return res.status(500).json({ error: err.message });

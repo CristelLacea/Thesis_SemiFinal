@@ -1884,6 +1884,33 @@ function setupEmailAutoGeneration() {
     editLname?.addEventListener('input', generateEditEmail);
 }
 
+// Track internal navigation vs true window exit
+document.addEventListener('click', (e) => {
+    const target = e.target.closest('a, button');
+    if (target) {
+        sessionStorage.setItem('nav_internal', '1');
+        setTimeout(() => sessionStorage.removeItem('nav_internal'), 2000);
+    }
+});
+
+// Auto-notify server on window/tab exit
+window.addEventListener('pagehide', () => {
+    if (sessionStorage.getItem('nav_internal')) return;
+    const email = localStorage.getItem('currentUser');
+    if (!email) return;
+    
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const exitUrl = isLocal ? 'http://localhost:3000/api/session-exit' : 'https://thesis-semifinal.onrender.com/api/session-exit';
+    const payload = JSON.stringify({ email });
+    
+    if (navigator.sendBeacon) {
+        const blob = new Blob([payload], { type: 'application/json' });
+        navigator.sendBeacon(exitUrl, blob);
+    } else {
+        fetch(exitUrl, { method: 'POST', body: payload, headers: { 'Content-Type': 'application/json' }, keepalive: true });
+    }
+});
+
 function startHeartbeat() {
     const email = localStorage.getItem('currentUser');
     if (!email) return;
@@ -1900,7 +1927,7 @@ function startHeartbeat() {
     };
 
     ping();
-    setInterval(ping, 25000);
+    setInterval(ping, 15000);
 }
 
 // --- STAFF ACTIVITY LOG INTERFACE ---
@@ -1972,7 +1999,17 @@ async function fetchAndRenderActivityLogs() {
         }
         
         tbody.innerHTML = logs.map(l => {
-            const formattedTime = new Date(l.timestamp).toLocaleString();
+            const logDate = new Date(l.timestamp);
+            const formattedTime = isNaN(logDate.getTime()) ? l.timestamp : logDate.toLocaleString('en-US', {
+                timeZone: 'Asia/Manila',
+                year: 'numeric',
+                month: 'numeric',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true
+            });
             
             // Stylize action names with color badges
             let actionBadgeStyle = 'background: #f1f5f9; color: #475569;';

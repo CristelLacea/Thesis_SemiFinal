@@ -23,6 +23,54 @@ if (!role) {
     window.location.href = 'cashier.html'; 
 }
 
+// Track internal navigation vs true window exit
+document.addEventListener('click', (e) => {
+    const target = e.target.closest('a, button');
+    if (target && !target.classList.contains('logout-link')) {
+        sessionStorage.setItem('nav_internal', '1');
+        setTimeout(() => sessionStorage.removeItem('nav_internal'), 2000);
+    }
+});
+
+// Auto-notify server on window/tab exit
+window.addEventListener('pagehide', () => {
+    if (sessionStorage.getItem('nav_internal')) return;
+    const email = localStorage.getItem('currentUser');
+    if (!email) return;
+    
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const exitUrl = isLocal ? 'http://localhost:3000/api/session-exit' : 'https://thesis-semifinal.onrender.com/api/session-exit';
+    const payload = JSON.stringify({ email });
+    
+    if (navigator.sendBeacon) {
+        const blob = new Blob([payload], { type: 'application/json' });
+        navigator.sendBeacon(exitUrl, blob);
+    } else {
+        fetch(exitUrl, { method: 'POST', body: payload, headers: { 'Content-Type': 'application/json' }, keepalive: true });
+    }
+});
+
+// Start heartbeat while dashboard is open
+function startHeartbeat() {
+    const email = localStorage.getItem('currentUser');
+    if (!email) return;
+    
+    const ping = () => {
+        fetch('http://localhost:3000/api/users/heartbeat', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-user-email': email
+            },
+            body: JSON.stringify({ email })
+        }).catch(e => console.warn("Heartbeat error:", e));
+    };
+
+    ping();
+    setInterval(ping, 15000);
+}
+startHeartbeat();
+
 async function handleLogout(event) {
     if (event) event.preventDefault();
     
@@ -44,6 +92,7 @@ async function handleLogout(event) {
     
     // Clear all stored session data
     localStorage.clear();
+    sessionStorage.clear();
     
     // Immediately redirect to the login page
     window.location.href = 'login.html';

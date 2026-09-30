@@ -100,8 +100,24 @@ function updateCartUI() {
                 <p style="color: #94a3b8; font-size: 0.9rem; margin-top: 5px; max-width: 320px;">Point device at a product barcode to automatically increment your checkout invoice ledger.</p>
             </div>`;
         
-        document.getElementById('totalPrice').innerText = "₱0.00";
-        document.getElementById('changeAmount').innerText = "₱0.00";
+        document.getElementById('totalPrice').innerText = "0.00";
+        document.getElementById('changeAmount').innerText = "0.00";
+        
+        // Reset sidebar total and change displays
+        const sidebarTotal = document.getElementById('sidebarTotalDisplay');
+        if (sidebarTotal) sidebarTotal.innerText = "₱0.00";
+        const sidebarChange = document.getElementById('sidebarChangeDisplay');
+        if (sidebarChange) sidebarChange.innerText = "₱0.00";
+
+        // Reset live receipt preview containers
+        const liveItemsContainer = document.getElementById('liveReceiptItems');
+        if (liveItemsContainer) {
+            liveItemsContainer.innerHTML = `<div style="text-align: center; color: #94a3b8; font-style: italic;">No items in cart</div>`;
+        }
+        const cashContainer = document.getElementById('liveReceiptCash');
+        if (cashContainer) {
+            cashContainer.innerText = `₱0.00`;
+        }
         return;
     }
 
@@ -143,8 +159,24 @@ function updateCartUI() {
 
     // Cache absolute totals directly on dataset properties
     const totalContainer = document.getElementById('totalPrice');
-    totalContainer.innerText = `₱${grandTotal.toFixed(2)}`;
+    totalContainer.innerText = `${grandTotal.toFixed(2)}`;
     totalContainer.dataset.rawTotal = grandTotal;
+
+    // Update prominent sidebar total display
+    const sidebarTotal = document.getElementById('sidebarTotalDisplay');
+    if (sidebarTotal) sidebarTotal.innerText = `₱${grandTotal.toFixed(2)}`;
+    
+    // Render live receipt preview items list
+    const liveItemsContainer = document.getElementById('liveReceiptItems');
+    if (liveItemsContainer) {
+        liveItemsContainer.innerHTML = cart.map(i => `
+            <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+                <span style="max-width: 60%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${i.prod_name}</span>
+                <span>x${i.qty}</span>
+                <span>${(i.price * i.qty).toFixed(2)}</span>
+            </div>
+        `).join('');
+    }
 
     calculateChange();
 }
@@ -156,13 +188,28 @@ function calculateChange() {
     const total = parseFloat(totalContainer.dataset.rawTotal) || 0;
     const cash = parseFloat(document.getElementById('cashReceived').value) || 0;
 
+    // Update live cash display on receipt
+    const cashContainer = document.getElementById('liveReceiptCash');
+    if (cashContainer) {
+        cashContainer.innerText = `₱${cash.toFixed(2)}`;
+    }
+
     if (total === 0) {
-        document.getElementById('changeAmount').innerText = "₱0.00";
+        document.getElementById('changeAmount').innerText = "0.00";
+        const sidebarChange = document.getElementById('sidebarChangeDisplay');
+        if (sidebarChange) sidebarChange.innerText = "₱0.00";
         return; 
     }
 
     const change = cash - total;
-    document.getElementById('changeAmount').innerText = `₱${(change >= 0 ? change : 0).toFixed(2)}`;
+    const displayChange = change >= 0 ? change : 0;
+    document.getElementById('changeAmount').innerText = `${displayChange.toFixed(2)}`;
+    
+    // Update prominent sidebar change display
+    const sidebarChange = document.getElementById('sidebarChangeDisplay');
+    if (sidebarChange) {
+        sidebarChange.innerText = `₱${displayChange.toFixed(2)}`;
+    }
 }
 
 // --- 5. ONSCREEN INTERACTIVE NUMPAD HANDLER (BUG 2 FIXED) ---
@@ -420,15 +467,72 @@ async function processTransaction() {
         });
         const saveResult = await saveRes.json();
 
-        const printReceiptOption = confirm("Transaction recorded! Would you like to print the official customer receipt?");
-        if (printReceiptOption) {
-            const currentChange = cash - total;
-            generateThermalReceipt(saveResult.id || "0000", total, cash, currentChange, cart);
+        const currentChange = cash - total;
+        
+        if (!window.checkoutMode || window.checkoutMode === 'receipt') {
+            // Save transaction parameters globally
+            window.currentReceiptData = {
+                saleId: saveResult.id || "0000",
+                totalAmount: total,
+                cashReceived: cash,
+                changeAmount: currentChange,
+                itemsList: [...cart]
+            };
+
+            // Render virtual receipt preview inside the modal dialog
+            const cleanDate = new Date().toLocaleString();
+            const receiptHTML = `
+            <div class="ticket-wrapper">
+                <div class="receipt-brand">WELJO'S STORE</div>
+                <div class="receipt-subhead">Balilihan, Bohol, Philippines</div>
+                <div class="receipt-divider">================================</div>
+                
+                <div class="meta-row"><strong>INVOICE ID:</strong> #${saveResult.id || "0000"}</div>
+                <div class="meta-row"><strong>DATE:</strong> ${cleanDate}</div>
+                <div class="receipt-divider">--------------------------------</div>
+                
+                <div class="items-header">
+                    <span>ITEM DESCRIPTION</span>
+                    <span>QTY</span>
+                    <span>TOTAL</span>
+                </div>
+                <div class="receipt-divider">--------------------------------</div>
+                
+                <div class="receipt-items-list">
+                    ${cart.map(i => `
+                    <div class="receipt-item-row">
+                        <span class="item-name-col">${i.prod_name}</span>
+                        <span>x${i.qty}</span>
+                        <span>${(i.price * i.qty).toFixed(2)}</span>
+                    </div>
+                    `).join('')}
+                </div>
+                
+                <div class="receipt-divider">--------------------------------</div>
+                <div class="summary-line grand-total-row">
+                    <span>TOTAL AMOUNT:</span> <span>${total.toFixed(2)}</span>
+                </div>
+                <div class="receipt-divider">--------------------------------</div>
+                <div class="summary-line"><span>CASH TENDERED:</span> <span>${cash.toFixed(2)}</span></div>
+                <div class="summary-line"><span>CHANGE DUE:</span> <span>${currentChange.toFixed(2)}</span></div>
+                
+                <div class="receipt-divider">================================</div>
+                <div class="receipt-footer">
+                    Thank You For Shopping With Us!<br>
+                    Please Keep This Copy For Your Records.
+                </div>
+            </div>`;
+
+            document.getElementById('receiptPreviewContent').innerHTML = receiptHTML;
+            document.getElementById('receiptPreviewModal').style.display = 'flex';
+        } else {
+            alert("Transaction saved successfully to inventory!");
         }
 
+        // Clear cart immediately and reload products from DB to record inventory
         cart = [];
         document.getElementById('cashReceived').value = '';
-        await loadProductsFromDB(); 
+        await loadProductsFromDB();
         updateCartUI();
     } catch (error) {
         console.error(error);
@@ -567,6 +671,33 @@ window.addEventListener('focus', async () => {
     await loadProductsFromDB();
 });
 
+// Track internal navigation vs true window exit
+document.addEventListener('click', (e) => {
+    const target = e.target.closest('a, button');
+    if (target && !target.innerText.includes('Logout')) {
+        sessionStorage.setItem('nav_internal', '1');
+        setTimeout(() => sessionStorage.removeItem('nav_internal'), 2000);
+    }
+});
+
+// Auto-notify server on window/tab exit
+window.addEventListener('pagehide', () => {
+    if (sessionStorage.getItem('nav_internal')) return;
+    const email = localStorage.getItem('currentUser');
+    if (!email) return;
+    
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const exitUrl = isLocal ? 'http://localhost:3000/api/session-exit' : 'https://thesis-semifinal.onrender.com/api/session-exit';
+    const payload = JSON.stringify({ email });
+    
+    if (navigator.sendBeacon) {
+        const blob = new Blob([payload], { type: 'application/json' });
+        navigator.sendBeacon(exitUrl, blob);
+    } else {
+        fetch(exitUrl, { method: 'POST', body: payload, headers: { 'Content-Type': 'application/json' }, keepalive: true });
+    }
+});
+
 function startHeartbeat() {
     const email = localStorage.getItem('currentUser');
     if (!email) return;
@@ -583,5 +714,46 @@ function startHeartbeat() {
     };
 
     ping();
-    setInterval(ping, 25000);
+    setInterval(ping, 15000);
+}
+
+function printReceiptFromPreview() {
+    if (window.currentReceiptData) {
+        const { saleId, totalAmount, cashReceived, changeAmount, itemsList } = window.currentReceiptData;
+        generateThermalReceipt(saleId, totalAmount, cashReceived, changeAmount, itemsList);
+    }
+    closeReceiptPreviewModal();
+}
+
+function closeReceiptPreviewModal() {
+    const modal = document.getElementById('receiptPreviewModal');
+    if (modal) modal.style.display = 'none';
+    window.currentReceiptData = null;
+}
+
+window.checkoutMode = 'quick';
+function setCheckoutMode(mode) {
+    window.checkoutMode = mode;
+    
+    const btnReceipt = document.getElementById('modeReceipt');
+    const btnQuick = document.getElementById('modeQuick');
+    const confirmBtn = document.getElementById('confirmBtn');
+    
+    if (!btnReceipt || !btnQuick || !confirmBtn) return;
+    
+    if (mode === 'quick') {
+        btnQuick.style.background = '#1d2b38';
+        btnQuick.style.color = 'white';
+        btnReceipt.style.background = 'transparent';
+        btnReceipt.style.color = '#64748b';
+        confirmBtn.innerText = 'Confirm & Save (No Print)';
+        confirmBtn.style.background = '#10b981'; // Primary green for standard Quick Save
+    } else {
+        btnQuick.style.background = 'transparent';
+        btnQuick.style.color = '#64748b';
+        btnReceipt.style.background = '#1d2b38';
+        btnReceipt.style.color = 'white';
+        confirmBtn.innerText = 'Confirm & Preview';
+        confirmBtn.style.background = '#eab308'; // System yellow for With Receipt
+    }
 }
