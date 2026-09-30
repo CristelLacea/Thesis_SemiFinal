@@ -623,7 +623,7 @@ app.get('/api/activity-logs', (req, res) => {
     }
     
     if (date && date.trim() !== "") {
-        sql += ` AND LEFT(timestamp, 10) = $${paramIndex}`;
+        sql += ` AND DATE(timestamp AT TIME ZONE 'Asia/Manila') = $${paramIndex}::date`;
         params.push(date.trim());
         paramIndex++;
     }
