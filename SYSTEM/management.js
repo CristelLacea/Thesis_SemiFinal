@@ -1081,6 +1081,7 @@ document.getElementById('utangForm')?.addEventListener('submit', async (e) => {
         totalProfit += ((item.price - item.cost) * item.qty);
     });
 
+    const userEmail = localStorage.getItem('currentUser') || '';
     const utangPayload = {
         customer_name: activeFolderCustomerName,
         items_list: JSON.stringify(selectedUtangItems),
@@ -1091,7 +1092,10 @@ document.getElementById('utangForm')?.addEventListener('submit', async (e) => {
     try {
         const res = await fetch('http://localhost:3000/api/save-utang', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'x-user-email': userEmail
+            },
             body: JSON.stringify(utangPayload)
         });
         const result = await res.json();
@@ -1108,10 +1112,54 @@ document.getElementById('utangForm')?.addEventListener('submit', async (e) => {
                 renderSpecificLedger(activeFolderCustomerName);
             }
         } else {
-            alert("System Error: " + (result.error || "Unable to save transaction record."));
+            alert(result.error || "Unable to save transaction record.");
         }
     } catch (error) {
         console.error("Credit transaction failed:", error);
+        alert("Action failed. Ensure your Node.js backend server is running!");
+    }
+});
+
+// --- WORKER: UPDATE CUSTOMER CREDIT LIMIT CEILING ---
+document.getElementById('creditLimitForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!activeFolderCustomerName) return;
+
+    const input = document.getElementById('newLimitAmountInput');
+    const newLimit = parseFloat(input?.value);
+
+    if (isNaN(newLimit) || newLimit < 0) {
+        alert("Validation Error: Please enter a valid non-negative amount.");
+        return;
+    }
+    if (newLimit > 2000.00) {
+        alert("Validation Error: Credit limit cannot exceed the maximum store ceiling of ₱2,000.00.");
+        return;
+    }
+
+    try {
+        const userEmail = localStorage.getItem('currentUser') || '';
+        const res = await fetch('http://localhost:3000/api/update-customer-limit', {
+            method: 'PUT',
+            headers: { 
+                'Content-Type': 'application/json',
+                'x-user-email': userEmail
+            },
+            body: JSON.stringify({
+                fullname: activeFolderCustomerName,
+                credit_limit: newLimit
+            })
+        });
+        const result = await res.json();
+        if (res.ok) {
+            alert(result.message || "Credit limit updated successfully! 🎉");
+            closeCreditLimitModal();
+            renderSpecificLedger(activeFolderCustomerName);
+        } else {
+            alert("System Error: " + (result.error || "Unable to update credit limit."));
+        }
+    } catch (error) {
+        console.error("Credit limit update failed:", error);
         alert("Action failed. Ensure your Node.js backend server is running!");
     }
 });
@@ -1275,6 +1323,26 @@ async function submitLedgerPayment() {
     } catch(e){}
 }
 
+function editCreditLimit() {
+    if (!activeFolderCustomerName) return;
+    const nameSpan = document.getElementById('limitModalCustomerName');
+    if (nameSpan) nameSpan.innerText = activeFolderCustomerName;
+
+    const currentText = document.getElementById('customerCreditLimit')?.innerText.replace(/[₱,]/g, '').trim() || "2000";
+    const currentVal = parseFloat(currentText) || 2000.00;
+    
+    const input = document.getElementById('newLimitAmountInput');
+    if (input) input.value = currentVal.toFixed(2);
+
+    const modal = document.getElementById('creditLimitModal');
+    if (modal) modal.style.display = 'flex';
+}
+
+function closeCreditLimitModal() {
+    const modal = document.getElementById('creditLimitModal');
+    if (modal) modal.style.display = 'none';
+}
+
 function showAlert(t, m) { alert(`${t}: ${m}`); }
 function toggleCategory(catId) { const rows = document.querySelectorAll(`.cat-row-${catId}`); rows.forEach(r => r.style.display = r.style.display === 'none' ? 'table-row' : 'none'); }
 function closeArchiveModal(event) {
@@ -1413,7 +1481,23 @@ async function renderSpecificLedger(customerName) {
     if (!tableBody) return;
 
     try {
-        const res = await fetch(`http://localhost:3000/api/utang-list-by-name?name=${customerName}`);
+        // Fetch customer record to get customized credit limit
+        let customerLimit = 2000.00;
+        try {
+            const custEndpoint = (typeof currentFolderViewTab !== 'undefined' && currentFolderViewTab === 'ARCHIVED') 
+                ? '/api/get-archived-customers' 
+                : '/api/get-customers';
+            const custRes = await fetch(`http://localhost:3000${custEndpoint}`);
+            const custList = await custRes.json();
+            const match = custList.find(c => c.fullname.toLowerCase() === customerName.toLowerCase());
+            if (match && match.credit_limit !== undefined && match.credit_limit !== null) {
+                customerLimit = parseFloat(match.credit_limit);
+            }
+        } catch (e) {
+            console.warn("Could not fetch customer credit limit:", e);
+        }
+
+        const res = await fetch(`http://localhost:3000/api/utang-list-by-name?name=${encodeURIComponent(customerName)}`);
         const transactionList = await res.json();
 
         let totalOutstandingDebt = 0;
@@ -1422,7 +1506,32 @@ async function renderSpecificLedger(customerName) {
 
         if (!transactionList || transactionList.length === 0) {
             tableBody.innerHTML = '<tr><td colspan="3" style="padding: 20px; text-align: center; color: #94a3b8;">No entries.</td></tr>';
-            document.getElementById('customerDebtTotal').innerText = "₱0.00";
+            const totalContainer = document.getElementById('customerDebtTotal');
+            if (totalContainer) {
+                totalContainer.innerText = "₱0.00";
+                totalContainer.style.color = "#10b981";
+            }
+            const oldLabel = document.getElementById('ledgerAccruedProfitLabel');
+            if (oldLabel) oldLabel.remove();
+
+            // Update credit limit summary
+            const creditLimitEl = document.getElementById('customerCreditLimit');
+            const availableCreditEl = document.getElementById('customerAvailableCredit');
+            const btnEditLimit = document.getElementById('btnEditCreditLimit');
+
+            if (creditLimitEl) {
+                creditLimitEl.innerText = `₱${customerLimit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            }
+            if (availableCreditEl) {
+                availableCreditEl.innerText = `₱${customerLimit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                availableCreditEl.style.color = "#10b981";
+            }
+            if (btnEditLimit) {
+                btnEditLimit.style.display = (typeof currentFolderViewTab !== 'undefined' && currentFolderViewTab === 'ARCHIVED') ? 'none' : 'inline-block';
+            }
+
+            const trackingTerminal = document.getElementById('paymentInputTerminal');
+            if (trackingTerminal) trackingTerminal.style.display = 'none';
             return;
         }
 
@@ -1496,28 +1605,53 @@ async function renderSpecificLedger(customerName) {
                 </tr>`;
         }).join('');
 
-        // --- STEP 3: UPDATE TERMINAL PANEL WRAPPERS ---
+        // --- STEP 3: UPDATE TERMINAL PANEL WRAPPERS & AVAILABLE CREDIT ---
+        const effectiveDebt = Math.max(0, totalOutstandingDebt);
+        const availableCredit = Math.max(0, customerLimit - effectiveDebt);
+
         const totalContainer = document.getElementById('customerDebtTotal');
         if (totalContainer) {
-            totalContainer.innerText = `₱${(totalOutstandingDebt > 0 ? totalOutstandingDebt : 0).toFixed(2)}`;
-            totalContainer.style.color = totalOutstandingDebt > 0 ? "#ff7675" : "#10b981";
+            totalContainer.innerText = `₱${effectiveDebt.toFixed(2)}`;
+            totalContainer.style.color = effectiveDebt > 0 ? "#ff7675" : "#10b981";
             
             const oldLabel = document.getElementById('ledgerAccruedProfitLabel');
             if (oldLabel) oldLabel.remove();
             
             let remainingProfitOwed = 0;
-            if (totalAmountBorrowed > 0 && totalOutstandingDebt > 0) {
+            if (totalAmountBorrowed > 0 && effectiveDebt > 0) {
                 const globalProfitMargin = totalProfitBorrowed / totalAmountBorrowed;
-                remainingProfitOwed = totalOutstandingDebt * globalProfitMargin;
+                remainingProfitOwed = effectiveDebt * globalProfitMargin;
             }
 
-            if (totalOutstandingDebt > 0) {
+            if (effectiveDebt > 0) {
                 totalContainer.insertAdjacentHTML('afterend', `
                     <div id="ledgerAccruedProfitLabel" style="margin-top: -5px; margin-bottom: 15px; font-size: 0.85rem; color: #64748b; font-weight: 600;">
                         Remaining Store Profit: <span style="color: #10b981; font-weight: 800;">₱${remainingProfitOwed.toFixed(2)}</span>
                     </div>
                 `);
             }
+        }
+
+        // Update Credit Limit and Available Credit fields
+        const creditLimitEl = document.getElementById('customerCreditLimit');
+        const availableCreditEl = document.getElementById('customerAvailableCredit');
+        const btnEditLimit = document.getElementById('btnEditCreditLimit');
+
+        if (creditLimitEl) {
+            creditLimitEl.innerText = `₱${customerLimit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        }
+        if (availableCreditEl) {
+            availableCreditEl.innerText = `₱${availableCredit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            if (availableCredit <= 0) {
+                availableCreditEl.style.color = "#ef4444";
+            } else if (availableCredit < (customerLimit * 0.25)) {
+                availableCreditEl.style.color = "#f59e0b";
+            } else {
+                availableCreditEl.style.color = "#10b981";
+            }
+        }
+        if (btnEditLimit) {
+            btnEditLimit.style.display = (typeof currentFolderViewTab !== 'undefined' && currentFolderViewTab === 'ARCHIVED') ? 'none' : 'inline-block';
         }
         
         // Dynamic visibility adjustments filtering based on folder view tab context profile rulesets
@@ -1547,10 +1681,11 @@ async function renderSpecificLedger(customerName) {
                     </div>`;
                 
                 // Show or hide the terminal wrapper based on whether there is actually money left to collect
-                trackingTerminal.style.display = totalOutstandingDebt <= 0 ? 'none' : 'flex';
+                trackingTerminal.style.display = effectiveDebt <= 0 ? 'none' : 'flex';
             }
         }
-const specificViewPanel = document.getElementById('specificCustomerView');
+
+        const specificViewPanel = document.getElementById('specificCustomerView');
         if (specificViewPanel) {
             const addUtangBtn = Array.from(specificViewPanel.getElementsByTagName('button'))
                 .find(btn => btn.innerText.includes('Add Item on Credit'));

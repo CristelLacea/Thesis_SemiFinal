@@ -244,31 +244,27 @@ app.post('/api/save-utang', (req, res) => {
         });
 
         let currentBalance = 0;
-        let totalChargesSinceLastZero = 0;
 
         sortedRows.forEach(r => {
             const isPayment = r.items_list.includes("Debt Payment");
             const amount = parseFloat(r.amount) || 0;
             if (isPayment) {
                 currentBalance -= amount;
-                if (currentBalance <= 0) {
-                    currentBalance = 0;
-                    totalChargesSinceLastZero = 0;
-                }
             } else {
                 currentBalance += amount;
-                totalChargesSinceLastZero += amount;
             }
         });
+        if (currentBalance < 0) currentBalance = 0;
 
         // 2. Fetch the customer's credit limit
         db.query("SELECT credit_limit FROM utang_customers WHERE fullname = $1", [customer_name], (limErr, limRes) => {
             if (limErr) return res.status(500).json({ error: limErr.message });
             const limit = limRes && limRes.rows.length > 0 ? parseFloat(limRes.rows[0].credit_limit) : 2000.00;
+            const availableCredit = Math.max(0, limit - currentBalance);
 
-            if (totalChargesSinceLastZero + newAmount > limit) {
+            if (currentBalance + newAmount > limit) {
                 return res.status(400).json({
-                    error: `Credit limit exceeded! Customer's current unpaid debt is ₱${currentBalance.toFixed(2)}. However, because payments do not restore the limit until the debt is fully paid, the effective usage is ₱${totalChargesSinceLastZero.toFixed(2)}. Adding this purchase of ₱${newAmount.toFixed(2)} would exceed their limit of ₱${limit.toFixed(2)}.`
+                    error: `Credit limit exceeded! Customer's current unpaid debt is ₱${currentBalance.toFixed(2)}. Available credit is ₱${availableCredit.toFixed(2)}. Adding this purchase of ₱${newAmount.toFixed(2)} would exceed their limit of ₱${limit.toFixed(2)}.`
                 });
             }
 
