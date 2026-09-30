@@ -1608,7 +1608,11 @@ async function renderUserList() {
         let users = await response.json();
         
         const showInactive = document.getElementById('showInactiveStaff')?.checked || false;
+        const currentLoggedInUser = (localStorage.getItem('currentUser') || '').toLowerCase();
         
+        // Count active admins in the whole list
+        const activeAdminsCount = users.filter(usr => (usr.role || '').toLowerCase() === 'admin' && usr.account_state !== 'INACTIVE' && usr.account_state !== 'BANNED').length;
+
         // Filter users based on active status
         if (!showInactive) {
             users = users.filter(u => u.account_state !== 'INACTIVE' && u.account_state !== 'BANNED');
@@ -1621,9 +1625,22 @@ async function renderUserList() {
             const bgColor = colors[index % colors.length];
             const isInactive = u.account_state === 'INACTIVE' || u.account_state === 'BANNED';
             const isOnline = u.is_online === true || u.is_online === 1;
+            const isSelf = (u.email || '').toLowerCase() === currentLoggedInUser;
+            const isSoleAdmin = (u.role || '').toLowerCase() === 'admin' && activeAdminsCount <= 1;
+            const isProtected = isSelf || (isSoleAdmin && !isInactive);
             
             // Safe JSON stringification to prevent quote breaking in onclick
             const safeUserJSON = JSON.stringify(u).replace(/'/g, "&#39;");
+
+            const selfTagHtml = isSelf 
+                ? `<span style="font-size: 0.72rem; color: #2563eb; font-weight: 800; background: #dbeafe; padding: 2px 7px; border-radius: 6px; margin-left: 4px;">You</span>` 
+                : '';
+
+            const deactivationButtonHtml = isProtected
+                ? `<span style="background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1; padding: 6px 10px; border-radius: 8px; font-weight: 700; font-size: 0.75rem; display: flex; align-items: center; gap: 5px; cursor: default;" title="${isSelf ? 'Your active account is protected from self-deactivation' : 'Sole active Administrator is protected'}"><i class="fa-solid fa-shield-halved" style="color: #3b82f6;"></i> Protected</span>`
+                : `<button onclick="deactivateUser(${u.id}, '${u.account_state}')" class="cancel-btn" style="background: ${isInactive ? '#10b981' : '#ef4444'}; color: white; border: none; padding: 6px 10px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: 0.2s; font-size: 0.8rem;">
+                        ${isInactive ? 'Reactivate' : 'Deactivate'}
+                   </button>`;
             
             return `
             <div class="employee-card" style="background-color: ${bgColor} !important; border: 1px solid ${isInactive ? '#fca5a5' : '#cbd5e1'}; position: relative; opacity: ${isInactive ? 0.75 : 1}; padding: 20px; border-radius: 12px; display: flex; flex-direction: column; align-items: center; text-align: center;">
@@ -1635,22 +1652,21 @@ async function renderUserList() {
                 <div style="width:60px; height:60px; border-radius:50%; background:white; display:flex; align-items:center; justify-content:center; margin-bottom:10px; box-shadow: 0 2px 4px rgba(0,0,0,0.03);">
                     <i class="fa-solid fa-user" style="font-size: 25px; color: ${isInactive ? '#94a3b8' : '#64748b'};"></i>
                 </div>
-                <h4 style="margin: 5px 0 2px 0; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 8px;">
+                <h4 style="margin: 5px 0 2px 0; font-weight: 700; color: #1e293b; display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap;">
                     <span style="width: 10px; height: 10px; border-radius: 50%; display: inline-block; background: ${isOnline ? '#10b981' : '#94a3b8'}; box-shadow: ${isOnline ? '0 0 8px #10b981' : 'none'};" title="${isOnline ? 'Online' : 'Offline'}"></span>
-                    ${u.first_name} ${u.last_name}
+                    <span>${u.first_name} ${u.last_name}</span>
+                    ${selfTagHtml}
                 </h4>
                 <p style="color: #64748b; font-size: 0.85rem; margin-bottom: 15px; font-weight: 500;">${u.role}</p>
                 
-                <div style="display: flex; gap: 6px; width: 100%; justify-content: center; flex-wrap: wrap;">
+                <div style="display: flex; gap: 6px; width: 100%; justify-content: center; align-items: center; flex-wrap: wrap;">
                     <button onclick='openEditModal(${safeUserJSON})' class="cancel-btn" style="background:white; border: 1px solid #cbd5e1; padding: 6px 10px; border-radius: 8px; cursor: pointer; transition: 0.2s;" title="Edit Details">
                         <i class="fa-solid fa-pen" style="color: #64748b;"></i>
                     </button>
                     <button onclick="openActivityLogsModal('${u.email}')" class="cancel-btn" style="background:white; border: 1px solid #cbd5e1; padding: 6px 10px; border-radius: 8px; cursor: pointer; transition: 0.2s;" title="View Activity Logs">
                         <i class="fa-solid fa-clock-rotate-left" style="color: #4f46e5;"></i>
                     </button>
-                    <button onclick="deactivateUser(${u.id}, '${u.account_state}')" class="cancel-btn" style="background: ${isInactive ? '#10b981' : '#ef4444'}; color: white; border: none; padding: 6px 10px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: 0.2s; font-size: 0.8rem;">
-                        ${isInactive ? 'Reactivate' : 'Deactivate'}
-                    </button>
+                    ${deactivationButtonHtml}
                 </div>
             </div>
             `;
