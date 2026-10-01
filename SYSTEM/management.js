@@ -1062,9 +1062,12 @@ document.getElementById('folderForm')?.addEventListener('submit', async (e) => {
     }
 });
 
+let isUtangSubmitting = false;
+
 // --- NEW WORKER: SUBMIT CREDIT TRANSACTION NOTE TO LEDGER ---
 document.getElementById('utangForm')?.addEventListener('submit', async (e) => {
     e.preventDefault(); // Prevents browser reload bugs
+    if (isUtangSubmitting) return;
 
     if (!selectedUtangItems || selectedUtangItems.length === 0) {
         alert("Please add at least one product to the list first.");
@@ -1088,6 +1091,14 @@ document.getElementById('utangForm')?.addEventListener('submit', async (e) => {
         amount: totalAmount,
         profit: totalProfit
     };
+
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.dataset.originalText = submitBtn.innerText;
+        submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+    }
+    isUtangSubmitting = true;
 
     try {
         const res = await fetch('http://localhost:3000/api/save-utang', {
@@ -1117,6 +1128,12 @@ document.getElementById('utangForm')?.addEventListener('submit', async (e) => {
     } catch (error) {
         console.error("Credit transaction failed:", error);
         alert("Action failed. Ensure your Node.js backend server is running!");
+    } finally {
+        isUtangSubmitting = false;
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerText = submitBtn.dataset.originalText || "Save to Ledger";
+        }
     }
 });
 
@@ -1313,14 +1330,65 @@ function switchFolderTab(t) {
     renderCustomerFolders(); 
 }
 
+let isLedgerPaymentProcessing = false;
+
 async function submitLedgerPayment() {
+    if (isLedgerPaymentProcessing) return;
+
     const paymentBox = document.getElementById('ledgerPaymentInput');
-    const cashValue = parseFloat(paymentBox.value);
-    if (isNaN(cashValue) || cashValue <= 0) return alert("Specify a validnumeric value.");
+    const cashValue = parseFloat(paymentBox?.value);
+    if (isNaN(cashValue) || cashValue <= 0) {
+        return alert("Validation Error: Please specify a valid payment amount.");
+    }
+
+    const currentDebtText = document.getElementById('customerDebtTotal')?.innerText.replace(/[₱,]/g, '').trim();
+    const currentDebt = parseFloat(currentDebtText) || 0;
+    if (currentDebt <= 0) {
+        return alert("This customer has no outstanding debt to settle.");
+    }
+    if (cashValue > currentDebt) {
+        return alert(`Validation Error: Payment amount (₱${cashValue.toFixed(2)}) cannot exceed the total outstanding debt of ₱${currentDebt.toFixed(2)}.`);
+    }
+
+    const payBtns = document.querySelectorAll('.proceed-payment-btn, .full-pay-btn');
+    payBtns.forEach(b => {
+        b.disabled = true;
+        b.dataset.originalText = b.innerText;
+        b.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processing...';
+    });
+
+    isLedgerPaymentProcessing = true;
+
     try {
-        const res = await fetch('http://localhost:3000/api/post-ledger-payment', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ customer_name: activeFolderCustomerName, payment_amount: cashValue }) });
-        if (res.ok) { paymentBox.value = ""; renderSpecificLedger(activeFolderCustomerName); }
-    } catch(e){}
+        const userEmail = localStorage.getItem('currentUser') || '';
+        const res = await fetch('http://localhost:3000/api/post-ledger-payment', { 
+            method: 'POST', 
+            headers: { 
+                'Content-Type': 'application/json',
+                'x-user-email': userEmail
+            }, 
+            body: JSON.stringify({ 
+                customer_name: activeFolderCustomerName, 
+                payment_amount: cashValue 
+            }) 
+        });
+        const result = await res.json();
+        if (res.ok) { 
+            if (paymentBox) paymentBox.value = ""; 
+            renderSpecificLedger(activeFolderCustomerName); 
+        } else {
+            alert("Payment Failed: " + (result.error || "Unable to record payment."));
+        }
+    } catch(e) {
+        console.error("Payment submission error:", e);
+        alert("Network Error: Unable to reach backend server. Please verify your connection.");
+    } finally {
+        isLedgerPaymentProcessing = false;
+        payBtns.forEach(b => {
+            b.disabled = false;
+            b.innerText = b.dataset.originalText || "Proceed Payment";
+        });
+    }
 }
 
 function editCreditLimit() {

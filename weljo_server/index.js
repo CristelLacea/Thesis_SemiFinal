@@ -319,6 +319,22 @@ app.post('/api/post-ledger-payment', (req, res) => {
 
         // Calculate how much cash has already been paid historically down the line
         let totalPastPaymentsAmount = pastPayments.reduce((sum, p) => sum + parseFloat(p.amount), 0);
+        let totalDebtsAmount = debts.reduce((sum, d) => sum + parseFloat(d.amount), 0);
+        let currentOutstandingDebt = Math.max(0, totalDebtsAmount - totalPastPaymentsAmount);
+
+        // 🛑 GUARD 1: Prevent duplicate/unnecessary payments when debt is already zero
+        if (currentOutstandingDebt <= 0) {
+            return res.status(400).json({ error: "Customer currently has no outstanding debt to settle." });
+        }
+
+        // 🛑 GUARD 2: Prevent paying more than the outstanding debt
+        if (cashRemaining > currentOutstandingDebt) {
+            return res.status(400).json({ 
+                error: `Payment amount (₱${cashRemaining.toFixed(2)}) exceeds current outstanding debt of ₱${currentOutstandingDebt.toFixed(2)}.` 
+            });
+        }
+
+        let profitRealizedThisPayment = 0;
 
         // Burn through old debts using past payment history to find where we currently stand
         debts.forEach(debt => {
