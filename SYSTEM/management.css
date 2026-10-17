@@ -403,7 +403,15 @@ td {
     padding: 5px 12px; 
     border-radius: 20px; 
     font-weight: bold; 
-    font-size: 0.8rem; 
+    font-size: 0.8rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.15s ease;
+}
+.stock-badge:hover {
+    transform: scale(1.06);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 .stock-high { 
     background: #d1fae5; 
@@ -418,8 +426,12 @@ td {
     border: none; 
     cursor: pointer; 
     color: #64748b; 
-    padding: 5px; 
-    font-size: 1.1rem; 
+    padding: 6px; 
+    font-size: 1.1rem;
+    transition: transform 0.15s ease, color 0.15s ease;
+}
+.action-btn:hover {
+    transform: scale(1.18);
 }
 
 /* --- MODAL --- */

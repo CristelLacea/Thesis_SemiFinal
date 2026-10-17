@@ -99,28 +99,151 @@ app.get('/api/products', (req, res) => {
     });
 });
 
-app.post('/api/add-product', (req, res) => {
+app.post('/api/add-product', async (req, res) => {
     const { barcode, name, category, orig_price, price_capital, stock, expiry, img, fav } = req.body;
+    const initialStock = parseInt(stock) || 0;
+    const expiryVal = expiry && String(expiry).trim() !== '' ? String(expiry).trim() : null;
     const sql = `INSERT INTO products 
                 (barcode_number, prod_name, prod_category, orig_price, price_capital, stock_Qty, expiry_Date, img_Url, Favorite) 
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING prod_id`;
-    db.query(sql, [barcode, name, category, orig_price, price_capital, stock, expiry, img, fav], (err, result) => {
-        if (err) return res.status(500).json({ error: err.message });
-        logActivity(req.userEmail, "Add Product", `Added product: ${name} (Category: ${category})`);
-        res.json({ message: "Product added successfully! 🍦", id: result.rows[0].prod_id });
-    });
+    try {
+        const result = await db.query(sql, [barcode, name, category, orig_price, price_capital, initialStock, expiryVal, img, fav || 0]);
+        const newProdId = result.rows[0].prod_id;
+
+        // Automatically log Batch #1 if initialStock > 0
+        if (initialStock > 0) {
+            const batchSql = `INSERT INTO product_batches (prod_id, batch_qty, initial_qty, expiry_date, supplier_note) VALUES ($1, $2, $2, $3, $4)`;
+            await db.query(batchSql, [newProdId, initialStock, expiryVal, 'Initial Inventory Batch']);
+        }
+
+        logActivity(req.userEmail, "Add Product", `Added product: ${name} (Initial Stock: ${initialStock}, Expiry: ${expiryVal || 'None'})`);
+        res.json({ message: "Product added successfully! 🍦", id: newProdId });
+    } catch (err) {
+        console.error("Add product error:", err);
+        res.status(500).json({ error: err.message });
+    }
 });
 
-app.put('/api/update-product/:id', (req, res) => {
+app.put('/api/update-product/:id', async (req, res) => {
     const prodId = req.params.id;
     const { barcode, name, category, orig_price, price_capital, stock, expiry, img, fav } = req.body;
-    const sqlUpdate = `UPDATE products SET barcode_number=$1, prod_name=$2, prod_category=$3, orig_price=$4, price_capital=$5, stock_Qty=$6, expiry_Date=$7, img_Url=$8, Favorite=$9 WHERE prod_id=$10`;
-    
-    db.query(sqlUpdate, [barcode, name, category, orig_price, price_capital, stock, expiry, img, fav, prodId], (upErr) => {
-        if (upErr) return res.status(500).send(upErr);
-        logActivity(req.userEmail, "Update Product", `Updated product ID ${prodId}: ${name}`);
+
+    try {
+        // If stock is NOT provided, this is a product specification edit from Management Edit Form
+        if (stock === undefined) {
+            const sqlUpdate = `UPDATE products SET barcode_number=$1, prod_name=$2, prod_category=$3, orig_price=$4, price_capital=$5, img_Url=$6 WHERE prod_id=$7`;
+            await db.query(sqlUpdate, [barcode, name, category, orig_price, price_capital, img, prodId]);
+            logActivity(req.userEmail, "Update Product", `Updated product details ID ${prodId}: ${name}`);
+            return res.json({ message: "Product details updated successfully! ✅" });
+        }
+
+        // If stock IS provided (e.g. from cashier checkout stock deduction)
+        const targetStock = parseInt(stock) || 0;
+        
+        // Fetch current batch total to calculate deduction difference
+        const batchesRes = await db.query(`SELECT COALESCE(SUM(batch_qty), 0) AS total FROM product_batches WHERE prod_id = $1 AND batch_qty > 0`, [prodId]);
+        const currentBatchTotal = parseInt(batchesRes.rows[0]?.total) || 0;
+        let deductQty = currentBatchTotal - targetStock;
+
+        // Perform FEFO deduction across active batches
+        if (deductQty > 0) {
+            const activeBatches = await db.query(`
+                SELECT batch_id, batch_qty 
+                FROM product_batches 
+                WHERE prod_id = $1 AND batch_qty > 0 
+                ORDER BY (expiry_date IS NULL), expiry_date ASC, batch_id ASC
+            `, [prodId]);
+
+            for (const b of activeBatches.rows) {
+                if (deductQty <= 0) break;
+                if (b.batch_qty <= deductQty) {
+                    deductQty -= b.batch_qty;
+                    await db.query(`UPDATE product_batches SET batch_qty = 0 WHERE batch_id = $1`, [b.batch_id]);
+                } else {
+                    await db.query(`UPDATE product_batches SET batch_qty = batch_qty - $1 WHERE batch_id = $2`, [deductQty, b.batch_id]);
+                    deductQty = 0;
+                }
+            }
+        }
+
+        // Recalculate nearest active expiry date from remaining batches
+        const nearestExpRes = await db.query(`
+            SELECT expiry_date 
+            FROM product_batches 
+            WHERE prod_id = $1 AND batch_qty > 0 AND expiry_date IS NOT NULL 
+            ORDER BY expiry_date ASC LIMIT 1
+        `, [prodId]);
+        const nearestExpiry = nearestExpRes.rows.length > 0 ? nearestExpRes.rows[0].expiry_date : null;
+
+        const sqlUpdate = `UPDATE products SET barcode_number=COALESCE($1, barcode_number), prod_name=COALESCE($2, prod_name), prod_category=COALESCE($3, prod_category), orig_price=COALESCE($4, orig_price), price_capital=COALESCE($5, price_capital), stock_Qty=$6, expiry_Date=$7, img_Url=COALESCE($8, img_Url), Favorite=COALESCE($9, Favorite) WHERE prod_id=$10`;
+        await db.query(sqlUpdate, [barcode, name, category, orig_price, price_capital, targetStock, nearestExpiry, img, fav, prodId]);
+
+        logActivity(req.userEmail, "Update Product", `Updated product ID ${prodId}: ${name} (Stock: ${targetStock})`);
         res.json({ message: "Update Successful! ✅" });
-    });
+    } catch (upErr) {
+        console.error("Update product error:", upErr);
+        res.status(500).json({ error: upErr.message });
+    }
+});
+
+// --- 1.1 BATCH MANAGEMENT & STOCK IN ROUTES ---
+
+// Stock In / Restock Delivery Batch
+app.post('/api/stock-in', async (req, res) => {
+    const { prod_id, qty, expiry_date, supplier_note } = req.body;
+    const addQty = parseInt(qty);
+    if (!prod_id || isNaN(addQty) || addQty <= 0) {
+        return res.status(400).json({ error: "Invalid product ID or quantity." });
+    }
+    const cleanExpiry = expiry_date && String(expiry_date).trim() !== '' ? String(expiry_date).trim() : null;
+    const note = supplier_note && String(supplier_note).trim() !== '' ? String(supplier_note).trim() : 'Stock In Delivery Batch';
+
+    try {
+        // 1. Insert new batch into product_batches
+        const batchSql = `INSERT INTO product_batches (prod_id, batch_qty, initial_qty, expiry_date, supplier_note) VALUES ($1, $2, $2, $3, $4) RETURNING batch_id`;
+        await db.query(batchSql, [prod_id, addQty, cleanExpiry, note]);
+
+        // 2. Recalculate total stock from active batches
+        const sumSql = `SELECT COALESCE(SUM(batch_qty), 0) AS total_stock FROM product_batches WHERE prod_id = $1 AND batch_qty > 0`;
+        const sumRes = await db.query(sumSql, [prod_id]);
+        const newTotalStock = parseInt(sumRes.rows[0].total_stock) || 0;
+
+        // 3. Recalculate nearest active expiry date
+        const nearestExpSql = `SELECT expiry_date FROM product_batches WHERE prod_id = $1 AND batch_qty > 0 AND expiry_date IS NOT NULL ORDER BY expiry_date ASC LIMIT 1`;
+        const expRes = await db.query(nearestExpSql, [prod_id]);
+        const nearestExpiry = expRes.rows.length > 0 ? expRes.rows[0].expiry_date : null;
+
+        // 4. Update products table total stock & nearest expiry date
+        await db.query('UPDATE products SET stock_Qty = $1, expiry_Date = $2 WHERE prod_id = $3', [newTotalStock, nearestExpiry, prod_id]);
+
+        // 5. Activity log
+        const pRes = await db.query('SELECT prod_name FROM products WHERE prod_id = $1', [prod_id]);
+        const prodName = pRes.rows[0]?.prod_name || `Product #${prod_id}`;
+        logActivity(req.userEmail, "Stock In", `Restocked +${addQty} units for "${prodName}" (Batch Expiry: ${cleanExpiry || 'Non-perishable'})`);
+
+        res.json({ message: `Successfully added ${addQty} units to ${prodName}!`, new_total_stock: newTotalStock, nearest_expiry: nearestExpiry });
+    } catch (err) {
+        console.error("Stock in error:", err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get all active and history batches for a specific product
+app.get('/api/product-batches/:id', async (req, res) => {
+    const prodId = req.params.id;
+    try {
+        const sql = `
+            SELECT batch_id, prod_id, batch_qty, initial_qty, expiry_date, received_date, supplier_note 
+            FROM product_batches 
+            WHERE prod_id = $1 
+            ORDER BY batch_qty DESC, (expiry_date IS NULL), expiry_date ASC, batch_id ASC
+        `;
+        const results = await db.query(sql, [prodId]);
+        res.json(results.rows);
+    } catch (err) {
+        console.error("Fetch batches error:", err);
+        res.status(500).json({ error: err.message });
+    }
 });
 
 app.delete('/api/delete-product/:id', (req, res) => {
@@ -333,8 +456,6 @@ app.post('/api/post-ledger-payment', (req, res) => {
                 error: `Payment amount (₱${cashRemaining.toFixed(2)}) exceeds current outstanding debt of ₱${currentOutstandingDebt.toFixed(2)}.` 
             });
         }
-
-        let profitRealizedThisPayment = 0;
 
         // Burn through old debts using past payment history to find where we currently stand
         debts.forEach(debt => {

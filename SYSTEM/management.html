@@ -507,9 +507,21 @@
                     <div><label>Markup</label><input type="number" id="prodCapital" step="0.01" required oninput="autoCalcSalePrice()"></div>
                 </div>
                 <div class="sale-price-display"><label>Auto-Calculated Sale Price:</label><span id="autoSalePrice">₱0.00</span></div>
-                <input type="number" id="prodStock" placeholder="Stock Quantity" required>
-                <div class="input-row">
-                    <div><label><i class="fa-solid fa-calendar-circle-exclamation"></i> Expiry Date</label><input type="date" id="prodExpiry"></div>
+                <div id="productStockExpiryGroup">
+                    <div class="input-row">
+                        <div>
+                            <label style="font-size: 0.8rem; font-weight: 700; color: #475569;"><i class="fa-solid fa-boxes-stacked"></i> Initial Stock</label>
+                            <input type="number" id="prodStock" placeholder="Initial Stock Quantity" min="0" step="1" required>
+                        </div>
+                        <div>
+                            <label style="font-size: 0.8rem; font-weight: 700; color: #475569;"><i class="fa-solid fa-calendar-circle-exclamation"></i> Expiry Date</label>
+                            <input type="date" id="prodExpiry">
+                        </div>
+                    </div>
+                </div>
+                <div id="productStockLockedInfo" style="display: none; background: #f8fafc; border: 1px solid #e2e8f0; padding: 12px 14px; border-radius: 8px; font-size: 0.84rem; color: #475569; margin-bottom: 12px;">
+                    <i class="fa-solid fa-lock" style="color: #64748b; margin-right: 6px;"></i>
+                    Current Stock: <strong id="lockedInfoStock" style="color: #0f172a;">0 units</strong>. Stock deliveries and batch expiration dates are managed via the green <strong style="color: #10b981;">+ Stock In</strong> button.
                 </div>
                 <input type="text" id="prodImg" placeholder="Image URL">
                 <div class="fav-toggle" style="display: none;"><label>Favorite?</label><input type="checkbox" id="prodFav"></div>
@@ -518,6 +530,105 @@
                     <button type="submit" class="save-btn">Save Product</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- STOCK IN / DELIVERY BATCH MODAL -->
+    <div id="stockInModal" class="modal">
+        <div class="modal-content" style="max-width: 440px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid #f1f5f9; padding-bottom: 12px;">
+                <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800; color: #1e293b; display: flex; align-items: center; gap: 8px;">
+                    <i class="fa-solid fa-boxes-packing" style="color: #10b981;"></i> Stock In Delivery
+                </h3>
+                <button type="button" onclick="closeStockInModal()" style="background: none; border: none; font-size: 1.3rem; cursor: pointer; color: #94a3b8; line-height: 1;">&times;</button>
+            </div>
+            
+            <!-- Product Identity Card -->
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px 14px; margin-bottom: 16px; display: flex; align-items: center; gap: 12px;">
+                <img id="stockInProdImg" src="" style="width: 46px; height: 46px; object-fit: contain; border-radius: 8px; background: white; border: 1px solid #e2e8f0; flex-shrink: 0;">
+                <div style="min-width: 0;">
+                    <h4 id="stockInProdName" style="margin: 0 0 3px 0; font-size: 0.95rem; font-weight: 800; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Product Name</h4>
+                    <span style="font-size: 0.8rem; color: #64748b;">Current Stock: <strong id="stockInCurrentStock" style="color: #0f172a;">0</strong> units</span>
+                </div>
+            </div>
+
+            <form id="stockInForm" onsubmit="submitStockIn(event)">
+                <input type="hidden" id="stockInProdId">
+                <div class="input-group" style="margin-bottom: 12px;">
+                    <label style="font-size: 0.82rem; font-weight: 700; color: #475569; display: block; margin-bottom: 4px;"><i class="fa-solid fa-plus-minus"></i> Quantity Received (+):</label>
+                    <input type="number" id="stockInQty" min="1" step="1" placeholder="e.g., 24" required oninput="previewStockInTotal()" style="width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 1rem; font-weight: 700; box-sizing: border-box;">
+                </div>
+                
+                <div class="input-group" style="margin-bottom: 12px;">
+                    <label style="font-size: 0.82rem; font-weight: 700; color: #475569; display: block; margin-bottom: 4px;"><i class="fa-solid fa-calendar-days"></i> Batch Expiration Date:</label>
+                    <input type="date" id="stockInExpiry" style="width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.95rem; box-sizing: border-box;">
+                    <span style="font-size: 0.72rem; color: #94a3b8; margin-top: 3px; display: block;">Leave blank if item is non-perishable (no expiry date).</span>
+                </div>
+
+                <div class="input-group" style="margin-bottom: 14px;">
+                    <label style="font-size: 0.82rem; font-weight: 700; color: #475569; display: block; margin-bottom: 4px;"><i class="fa-solid fa-tag"></i> Supplier / Delivery Note (Optional):</label>
+                    <input type="text" id="stockInNote" placeholder="e.g., Delivery Batch #2 or Supplier Name" style="width: 100%; padding: 9px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.88rem; box-sizing: border-box;">
+                </div>
+
+                <!-- Preview Box -->
+                <div style="background: #f0fdf4; border: 1px dashed #86efac; border-radius: 8px; padding: 10px 14px; margin-bottom: 18px; display: flex; justify-content: space-between; align-items: center; font-size: 0.84rem; color: #166534; font-weight: 700;">
+                    <span>New Total Stock:</span>
+                    <strong id="stockInPreviewTotal" style="font-size: 1.15rem; color: #15803d;">0 units</strong>
+                </div>
+
+                <div class="modal-actions" style="display: flex; gap: 10px; justify-content: flex-end;">
+                    <button type="button" class="cancel-btn" onclick="closeStockInModal()">Cancel</button>
+                    <button type="submit" class="save-btn" id="btnSubmitStockIn" style="background: #10b981; color: white;">
+                        <i class="fa-solid fa-circle-check"></i> Add to Inventory
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- BATCH INSPECTION & EXPIRY BREAKDOWN MODAL -->
+    <div id="batchViewerModal" class="modal">
+        <div class="modal-content" style="max-width: 580px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; border-bottom: 1px solid #f1f5f9; padding-bottom: 12px;">
+                <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800; color: #1e293b; display: flex; align-items: center; gap: 8px;">
+                    <i class="fa-solid fa-layer-group" style="color: #2563eb;"></i> Delivery Batches & Expiry Breakdown
+                </h3>
+                <button type="button" onclick="closeBatchViewerModal()" style="background: none; border: none; font-size: 1.3rem; cursor: pointer; color: #94a3b8; line-height: 1;">&times;</button>
+            </div>
+            
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px 16px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h4 id="batchViewerProdName" style="margin: 0 0 2px 0; font-size: 1rem; font-weight: 800; color: #0f172a;">Product Name</h4>
+                    <span style="font-size: 0.78rem; color: #64748b;">FEFO (First Expired, First Out) Inventory Tracking</span>
+                </div>
+                <div style="text-align: right;">
+                    <span style="font-size: 0.72rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Total Stock</span>
+                    <p id="batchViewerTotalStock" style="margin: 0; font-size: 1.3rem; font-weight: 900; color: #10b981;">0</p>
+                </div>
+            </div>
+
+            <div style="max-height: 280px; overflow-y: auto; margin-bottom: 16px; border: 1px solid #e2e8f0; border-radius: 10px;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem; text-align: left;">
+                    <thead style="background: #f8fafc; border-bottom: 2px solid #e2e8f0; position: sticky; top: 0;">
+                        <tr>
+                            <th style="padding: 10px 12px; font-weight: 800; color: #475569;">Batch / Date</th>
+                            <th style="padding: 10px 12px; font-weight: 800; color: #475569; text-align: center;">Stock Left</th>
+                            <th style="padding: 10px 12px; font-weight: 800; color: #475569;">Expiration Date</th>
+                            <th style="padding: 10px 12px; font-weight: 800; color: #475569;">Note</th>
+                        </tr>
+                    </thead>
+                    <tbody id="batchViewerTableBody">
+                        <!-- Populated dynamically -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="modal-actions" style="display: flex; justify-content: space-between; align-items: center;">
+                <button type="button" class="cancel-btn" onclick="closeBatchViewerModal()">Close</button>
+                <button type="button" class="save-btn" id="btnQuickStockInFromViewer" style="background: #10b981; color: white;">
+                    <i class="fa-solid fa-plus"></i> + Stock In New Batch
+                </button>
+            </div>
         </div>
     </div>
 

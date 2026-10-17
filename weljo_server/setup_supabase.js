@@ -23,7 +23,18 @@ CREATE TABLE IF NOT EXISTS products (
     is_archived SMALLINT NOT NULL DEFAULT 0
 );
 
--- 2. Create PRICE_HISTORY table
+-- 2. Create PRODUCT_BATCHES table
+CREATE TABLE IF NOT EXISTS product_batches (
+    batch_id SERIAL PRIMARY KEY,
+    prod_id INT REFERENCES products(prod_id) ON DELETE CASCADE,
+    batch_qty INT NOT NULL DEFAULT 0,
+    initial_qty INT NOT NULL DEFAULT 0,
+    expiry_date VARCHAR(255) DEFAULT NULL,
+    received_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    supplier_note VARCHAR(255) DEFAULT ''
+);
+
+-- 3. Create PRICE_HISTORY table
 CREATE TABLE IF NOT EXISTS price_history (
     log_id SERIAL PRIMARY KEY,
     prod_id INT REFERENCES products(prod_id) ON DELETE CASCADE,

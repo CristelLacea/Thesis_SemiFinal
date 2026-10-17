@@ -139,6 +139,10 @@ async function openModal(event, id = null) {
     
     modal.style.display = 'flex';
     const barcodeInput = document.getElementById('prodBarcode');
+    const stockExpiryGroup = document.getElementById('productStockExpiryGroup');
+    const stockLockedInfo = document.getElementById('productStockLockedInfo');
+    const lockedInfoStock = document.getElementById('lockedInfoStock');
+    const prodStockInput = document.getElementById('prodStock');
     
     if (id) {
         editId = id;
@@ -152,19 +156,28 @@ async function openModal(event, id = null) {
             document.getElementById('prodCat').value = p.prod_category || 'food';
             document.getElementById('prodOrigPrice').value = p.orig_price;
             document.getElementById('prodCapital').value = p.price_capital;
-            document.getElementById('prodStock').value = p.stock_Qty;
-            document.getElementById('prodImg').value = p.img_Url;
+            document.getElementById('prodImg').value = p.img_Url || '';
             const favEl = document.getElementById('prodFav'); if (favEl) favEl.checked = false;
-            if(p.expiry_Date) {
-                document.getElementById('prodExpiry').value = p.expiry_Date.split('T')[0];
-            }
+            
+            // Hide stock & expiry inputs when editing an existing product to preserve batch history
+            if (stockExpiryGroup) stockExpiryGroup.style.display = 'none';
+            if (prodStockInput) prodStockInput.removeAttribute('required');
+            if (stockLockedInfo) stockLockedInfo.style.display = 'block';
+            if (lockedInfoStock) lockedInfoStock.innerText = `${p.stock_Qty || 0} units`;
+
             autoCalcSalePrice();
-            modal.querySelector('h3').innerText = "Edit Product";
+            modal.querySelector('h3').innerText = "Edit Product Details";
         }
     } else {
         editId = null;
         document.getElementById('productForm').reset();
         document.getElementById('autoSalePrice').innerText = "₱0.00";
+        
+        // Show stock & expiry inputs when creating a brand-new product (Batch #1)
+        if (stockExpiryGroup) stockExpiryGroup.style.display = 'block';
+        if (prodStockInput) prodStockInput.setAttribute('required', 'required');
+        if (stockLockedInfo) stockLockedInfo.style.display = 'none';
+
         modal.querySelector('h3').innerText = "Add New Product";
         if (barcodeInput) {
             setTimeout(() => barcodeInput.focus(), 100);
@@ -182,17 +195,32 @@ document.getElementById('productForm')?.addEventListener('submit', async (e) => 
 
     const barcodeInput = document.getElementById('prodBarcode').value.trim();
 
-    const productData = {
-        barcode: barcodeInput || null,
-        name: name,
-        category: category,
-        orig_price: newOrigPrice,
-        price_capital: newCapital,
-        stock: parseInt(document.getElementById('prodStock').value) || 0,
-        expiry: document.getElementById('prodExpiry').value || null,
-        img: document.getElementById('prodImg').value || 'https://via.placeholder.com/150',
-        fav: 0
-    };
+    let productData;
+    if (editId) {
+        // Editing existing product: omit stock and expiry so batches and stock are NOT overwritten
+        productData = {
+            barcode: barcodeInput || null,
+            name: name,
+            category: category,
+            orig_price: newOrigPrice,
+            price_capital: newCapital,
+            img: document.getElementById('prodImg').value || 'https://via.placeholder.com/150',
+            fav: 0
+        };
+    } else {
+        // Brand new product: include initial stock and initial batch expiry
+        productData = {
+            barcode: barcodeInput || null,
+            name: name,
+            category: category,
+            orig_price: newOrigPrice,
+            price_capital: newCapital,
+            stock: parseInt(document.getElementById('prodStock').value) || 0,
+            expiry: document.getElementById('prodExpiry').value || null,
+            img: document.getElementById('prodImg').value || 'https://via.placeholder.com/150',
+            fav: 0
+        };
+    }
 
     try {
         if (editId) {
@@ -451,10 +479,17 @@ function compileFilteredCategoryItems(itemsArray) {
                 <td style="color:#64748b; font-weight:500;">₱${parseFloat(p.orig_price).toFixed(2)}</td>
                 <td style="color:#64748b; font-weight:500;">₱${parseFloat(p.price_capital).toFixed(2)}</td>
                 <td style="font-weight:800; color:#0f172a;">₱${(parseFloat(p.orig_price) + parseFloat(p.price_capital)).toFixed(2)}</td>
-                <td style="text-align:center;"><span class="stock-badge ${p.stock_Qty <= 5 ? 'stock-low' : 'stock-high'}">${p.stock_Qty}</span></td>
+                <td style="text-align:center;">
+                    <span class="stock-badge ${p.stock_Qty <= 5 ? 'stock-low' : 'stock-high'}" onclick="openBatchViewerModal(event, ${p.prod_id})" style="cursor:pointer;" title="Click to view delivery batches & expiration breakdown">
+                        ${p.stock_Qty} <i class="fa-solid fa-layer-group" style="font-size:0.65rem; margin-left:3px; opacity:0.8;"></i>
+                    </span>
+                </td>
                 <td style="text-align:center;">${starBadge}</td>
                 <td style="text-align:right;">
-                    <button class="action-btn" type="button" onclick="openModal(event, ${p.prod_id})" style="color:#64748b; margin-right:8px;" title="Edit Product">
+                    <button class="action-btn" type="button" onclick="openStockInModal(event, ${p.prod_id})" style="color:#10b981; margin-right:6px;" title="Stock In / Add Delivery Batch">
+                        <i class="fa-solid fa-plus"></i>
+                    </button>
+                    <button class="action-btn" type="button" onclick="openModal(event, ${p.prod_id})" style="color:#64748b; margin-right:6px;" title="Edit Product Details">
                         <i class="fa-solid fa-pen"></i>
                     </button>
                     <button class="action-btn" type="button" onclick="archiveProduct(${p.prod_id})" style="color: #f59e0b;" title="Archive Product">
@@ -3230,4 +3265,219 @@ async function generateReportEngine() {
         console.error("Report generation failed:", err);
         tableBody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 30px; color: #ef4444; font-weight: 600;">Failed to fetch transactional streams from database.</td></tr>';
     }
+}
+
+
+// ==========================================================================
+// STOCK IN / DELIVERY BATCH & FEFO INVENTORY TRACKING CONTROLLERS
+// ==========================================================================
+
+let activeStockInProduct = null;
+
+async function openStockInModal(event, prodId) {
+    if (event) event.stopPropagation();
+    try {
+        const res = await fetch('http://localhost:3000/api/products');
+        const products = await res.json();
+        const p = products.find(item => item.prod_id === prodId);
+        if (!p) return alert("Product not found.");
+
+        activeStockInProduct = p;
+        const prodIdInput = document.getElementById('stockInProdId');
+        if (prodIdInput) prodIdInput.value = p.prod_id;
+
+        const prodNameEl = document.getElementById('stockInProdName');
+        if (prodNameEl) prodNameEl.innerText = p.prod_name;
+
+        const curStockEl = document.getElementById('stockInCurrentStock');
+        if (curStockEl) curStockEl.innerText = p.stock_Qty || 0;
+
+        const prodImgEl = document.getElementById('stockInProdImg');
+        if (prodImgEl) prodImgEl.src = p.img_Url || 'https://via.placeholder.com/150';
+
+        const qtyInput = document.getElementById('stockInQty');
+        if (qtyInput) qtyInput.value = '';
+
+        const expInput = document.getElementById('stockInExpiry');
+        if (expInput) expInput.value = '';
+
+        const noteInput = document.getElementById('stockInNote');
+        if (noteInput) noteInput.value = '';
+
+        const previewEl = document.getElementById('stockInPreviewTotal');
+        if (previewEl) previewEl.innerText = `${p.stock_Qty || 0} units`;
+
+        const modal = document.getElementById('stockInModal');
+        if (modal) {
+            modal.style.display = 'flex';
+            setTimeout(() => document.getElementById('stockInQty')?.focus(), 100);
+        }
+    } catch (err) {
+        console.error("Open Stock In Modal Error:", err);
+        alert("Failed to load product details for Stock In.");
+    }
+}
+
+function closeStockInModal() {
+    const modal = document.getElementById('stockInModal');
+    if (modal) modal.style.display = 'none';
+    activeStockInProduct = null;
+}
+
+function previewStockInTotal() {
+    if (!activeStockInProduct) return;
+    const current = parseInt(activeStockInProduct.stock_Qty) || 0;
+    const addVal = parseInt(document.getElementById('stockInQty')?.value) || 0;
+    const total = current + Math.max(0, addVal);
+    const previewEl = document.getElementById('stockInPreviewTotal');
+    if (previewEl) {
+        previewEl.innerText = `${total} units (+${Math.max(0, addVal)})`;
+    }
+}
+
+async function submitStockIn(event) {
+    if (event) event.preventDefault();
+    const prodId = parseInt(document.getElementById('stockInProdId')?.value);
+    const qty = parseInt(document.getElementById('stockInQty')?.value);
+    const expiryDate = document.getElementById('stockInExpiry')?.value;
+    const note = document.getElementById('stockInNote')?.value;
+
+    if (!prodId || isNaN(qty) || qty <= 0) {
+        return alert("Validation Error: Please enter a valid quantity to stock in.");
+    }
+
+    const btn = document.getElementById('btnSubmitStockIn');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+    }
+
+    try {
+        const userEmail = localStorage.getItem('currentUser') || 'admin@weljo.com';
+        const res = await fetch('http://localhost:3000/api/stock-in', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-user-email': userEmail
+            },
+            body: JSON.stringify({
+                prod_id: prodId,
+                qty: qty,
+                expiry_date: expiryDate || null,
+                supplier_note: note || ''
+            })
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+            alert(data.message || "Stock added successfully!");
+            closeStockInModal();
+            refreshProductsUI();
+            
+            // Also refresh batch viewer if it was open
+            const batchModal = document.getElementById('batchViewerModal');
+            if (batchModal && batchModal.style.display === 'flex' && activeBatchViewerProdId === prodId) {
+                openBatchViewerModal(null, prodId);
+            }
+        } else {
+            alert("Error: " + (data.error || "Failed to stock in product."));
+        }
+    } catch (err) {
+        console.error("Stock in submit error:", err);
+        alert("Network error: Unable to connect to server.");
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-circle-check"></i> Add to Inventory';
+        }
+    }
+}
+
+// --- BATCH INSPECTION VIEWER MODAL LOGIC ---
+let activeBatchViewerProdId = null;
+
+async function openBatchViewerModal(event, prodId) {
+    if (event) event.stopPropagation();
+    activeBatchViewerProdId = prodId;
+
+    try {
+        const resProd = await fetch('http://localhost:3000/api/products');
+        const products = await resProd.json();
+        const p = products.find(item => item.prod_id === prodId);
+        if (!p) return alert("Product not found.");
+
+        const nameEl = document.getElementById('batchViewerProdName');
+        if (nameEl) nameEl.innerText = p.prod_name;
+
+        const stockEl = document.getElementById('batchViewerTotalStock');
+        if (stockEl) stockEl.innerText = `${p.stock_Qty} units`;
+
+        const resBatches = await fetch(`http://localhost:3000/api/product-batches/${prodId}`);
+        const batches = await resBatches.json();
+
+        const tbody = document.getElementById('batchViewerTableBody');
+        if (!tbody) return;
+
+        if (!batches || batches.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 24px; color: #94a3b8;">No delivery batches recorded yet for this product.</td></tr>`;
+        } else {
+            const now = new Date();
+            tbody.innerHTML = batches.map(b => {
+                let expiryStatus = '';
+                if (!b.expiry_date) {
+                    expiryStatus = '<span style="background: #f1f5f9; color: #64748b; padding: 3px 8px; border-radius: 6px; font-weight: 700; font-size: 0.76rem;">Non-perishable</span>';
+                } else {
+                    const exp = new Date(b.expiry_date);
+                    const diffDays = Math.ceil((exp - now) / (1000 * 60 * 60 * 24));
+                    const dateFormatted = exp.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+
+                    if (diffDays <= 0) {
+                        expiryStatus = `<span style="background: #fee2e2; color: #dc2626; padding: 3px 8px; border-radius: 6px; font-weight: 800; font-size: 0.76rem;" title="Expired!">${dateFormatted} (Expired)</span>`;
+                    } else if (diffDays <= 30) {
+                        expiryStatus = `<span style="background: #fef3c7; color: #b45309; padding: 3px 8px; border-radius: 6px; font-weight: 800; font-size: 0.76rem;" title="Expiring soon!">${dateFormatted} (${diffDays}d left)</span>`;
+                    } else {
+                        expiryStatus = `<span style="background: #ecfdf5; color: #059669; padding: 3px 8px; border-radius: 6px; font-weight: 700; font-size: 0.76rem;">${dateFormatted}</span>`;
+                    }
+                }
+
+                const receivedFormatted = b.received_date ? new Date(b.received_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Opening';
+                const isDepleted = b.batch_qty <= 0;
+
+                return `
+                    <tr style="${isDepleted ? 'opacity: 0.5; background: #f8fafc;' : ''}; border-bottom: 1px solid #f1f5f9;">
+                        <td style="padding: 10px 12px; font-weight: 700; color: #1e293b;">
+                            Batch #${b.batch_id}
+                            <span style="display: block; font-size: 0.72rem; color: #94a3b8; font-weight: 500;">Rcvd: ${receivedFormatted}</span>
+                        </td>
+                        <td style="padding: 10px 12px; text-align: center;">
+                            <strong style="color: ${isDepleted ? '#94a3b8' : '#0f172a'}; font-size: 0.95rem;">${b.batch_qty}</strong>
+                            <span style="font-size: 0.72rem; color: #94a3b8; display: block;">of ${b.initial_qty}</span>
+                        </td>
+                        <td style="padding: 10px 12px;">${expiryStatus}</td>
+                        <td style="padding: 10px 12px; color: #64748b; font-size: 0.78rem;">${b.supplier_note || '—'}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        const quickStockInBtn = document.getElementById('btnQuickStockInFromViewer');
+        if (quickStockInBtn) {
+            quickStockInBtn.onclick = () => {
+                closeBatchViewerModal();
+                openStockInModal(null, prodId);
+            };
+        }
+
+        const modal = document.getElementById('batchViewerModal');
+        if (modal) modal.style.display = 'flex';
+    } catch (err) {
+        console.error("Open Batch Viewer Error:", err);
+        alert("Failed to load batch records.");
+    }
+}
+
+function closeBatchViewerModal() {
+    const modal = document.getElementById('batchViewerModal');
+    if (modal) modal.style.display = 'none';
+    activeBatchViewerProdId = null;
 }
