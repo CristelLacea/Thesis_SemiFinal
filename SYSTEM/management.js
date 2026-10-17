@@ -2902,6 +2902,7 @@ async function populateReportCustomerDropdown() {
 
     try {
         let customerNames = new Set();
+        let allUtangList = [];
 
         // 1. Fetch from active customers
         try {
@@ -2936,22 +2937,69 @@ async function populateReportCustomerDropdown() {
             }
         } catch(e) {}
 
-        // 4. Also pull from utang transactions so any existing borrower is available
+        // 4. Fetch utang transactions to compute remaining balances accurately
         try {
             const utangRes = await fetch('http://localhost:3000/api/get-all-utang');
             if (utangRes.ok) {
                 const utangList = await utangRes.json();
                 if (Array.isArray(utangList)) {
-                    utangList.forEach(u => { if (u.customer_name) customerNames.add(u.customer_name.trim()); });
+                    allUtangList = utangList;
+                    allUtangList.forEach(u => { if (u.customer_name) customerNames.add(u.customer_name.trim()); });
                 }
             }
         } catch(e) {}
 
-        let html = '<option value="ALL">All Creditors (Storewide)</option>';
-        const sorted = Array.from(customerNames).sort((a, b) => a.localeCompare(b));
-        sorted.forEach(name => {
-            html += `<option value="${name}">${name}</option>`;
+        // Calculate active remaining balance for every customer
+        const customerBalances = {};
+        customerNames.forEach(name => { customerBalances[name] = 0; });
+
+        allUtangList.forEach(u => {
+            if (!u.customer_name) return;
+            const name = u.customer_name.trim();
+            if (customerBalances[name] === undefined) customerBalances[name] = 0;
+            const isPayment = (u.items_list || '').includes("Debt Payment");
+            const amt = parseFloat(u.amount) || 0;
+            if (isPayment) {
+                customerBalances[name] -= amt;
+            } else {
+                customerBalances[name] += amt;
+            }
         });
+
+        // Partition into Active Debtors (balance > 0) vs Settled Accounts (balance <= 0)
+        const activeDebtors = [];
+        const settledAccounts = [];
+
+        customerNames.forEach(name => {
+            const bal = Math.max(0, customerBalances[name] || 0);
+            if (bal > 0) {
+                activeDebtors.push({ name, balance: bal });
+            } else {
+                settledAccounts.push({ name, balance: 0 });
+            }
+        });
+
+        activeDebtors.sort((a, b) => a.name.localeCompare(b.name));
+        settledAccounts.sort((a, b) => a.name.localeCompare(b.name));
+
+        let html = '<option value="ALL">All Creditors (Storewide)</option>';
+
+        if (activeDebtors.length > 0) {
+            html += `<optgroup label="Active Debtors (${activeDebtors.length})">`;
+            activeDebtors.forEach(c => {
+                html += `<option value="${c.name}">${c.name} — ₱${c.balance.toFixed(2)} debt</option>`;
+            });
+            html += `</optgroup>`;
+        }
+
+        if (settledAccounts.length > 0) {
+            html += `<optgroup label="Settled Accounts (${settledAccounts.length})">`;
+            settledAccounts.forEach(c => {
+                html += `<option value="${c.name}">${c.name} — Settled (₱0.00)</option>`;
+            });
+            html += `</optgroup>`;
+        }
+
         select.innerHTML = html;
         if (currentVal && Array.from(select.options).some(o => o.value === currentVal)) {
             select.value = currentVal;
