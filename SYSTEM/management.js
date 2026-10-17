@@ -110,6 +110,11 @@ function showSection(id) {
         if (startInput && !startInput.value) {
             startInput.value = today.toLocaleDateString('sv-SE');
         }
+        populateReportCustomerDropdown();
+        const custWrapper = document.getElementById('reportCustomerSelectWrapper');
+        if (custWrapper) {
+            custWrapper.style.display = currentReportType === 'collections' ? 'flex' : 'none';
+        }
         generateReportEngine();
     }
 }
@@ -2870,6 +2875,31 @@ function setReportPeriod(period) {
 // Global State for Reports Type Selector
 let currentReportType = 'cash';
 
+async function populateReportCustomerDropdown() {
+    const select = document.getElementById('reportCustomerFilter');
+    if (!select) return;
+    const currentVal = select.value || 'ALL';
+
+    try {
+        const res = await fetch('http://localhost:3000/api/customer-folders');
+        const folders = await res.json();
+        
+        let html = '<option value="ALL">All Creditors (Storewide)</option>';
+        if (Array.isArray(folders)) {
+            const sorted = folders.sort((a, b) => (a.fullname || '').localeCompare(b.fullname || ''));
+            sorted.forEach(c => {
+                html += `<option value="${c.fullname}">${c.fullname}</option>`;
+            });
+        }
+        select.innerHTML = html;
+        if (currentVal && Array.from(select.options).some(o => o.value === currentVal)) {
+            select.value = currentVal;
+        }
+    } catch (err) {
+        console.error("Failed to load customer list for reports:", err);
+    }
+}
+
 function setReportType(type) {
     currentReportType = type;
 
@@ -2884,6 +2914,16 @@ function setReportType(type) {
     if (btnCollections) {
         btnCollections.style.background = type === 'collections' ? '#1d2b38' : 'transparent';
         btnCollections.style.color = type === 'collections' ? 'white' : '#475569';
+    }
+
+    // Toggle creditor selector visibility
+    const custWrapper = document.getElementById('reportCustomerSelectWrapper');
+    if (custWrapper) {
+        custWrapper.style.display = type === 'collections' ? 'flex' : 'none';
+    }
+
+    if (type === 'collections') {
+        populateReportCustomerDropdown();
     }
 
     generateReportEngine();
@@ -2913,17 +2953,7 @@ async function generateReportEngine() {
     document.getElementById('reportGenTime').innerText = new Date().toLocaleString();
     document.getElementById('reportOperatorEmail').innerText = localStorage.getItem('currentUser') || 'system@weljo.com';
 
-    // Update Report Document Title dynamically based on report type selection
-    const docTitle = document.getElementById('reportDocumentTitle');
-    if (docTitle) {
-        if (currentReportType === 'cash') {
-            docTitle.innerText = "Sales Performance Report";
-        } else if (currentReportType === 'collections') {
-            docTitle.innerText = "Cash Collections Report";
-        }
-    }
-
-    // Format Period Header Text (clean and short date format to prevent page overflow)
+    // Format Period Header Text
     let rangeText = "";
     const startFormatted = startDate.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
     const endFormatted = endDate.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
@@ -2935,7 +2965,7 @@ async function generateReportEngine() {
     }
     document.getElementById('reportPeriodText').innerText = rangeText;
 
-    tableBody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 30px; color: #64748b;"><i class="fa-solid fa-spinner fa-spin"></i> Generating report sheets...</td></tr>';
+    tableBody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 30px; color: #64748b;"><i class="fa-solid fa-spinner fa-spin"></i> Generating report sheets...</td></tr>';
 
     try {
         const [salesRes, prodRes] = await Promise.all([
@@ -2945,18 +2975,21 @@ async function generateReportEngine() {
         const allSales = await salesRes.json();
         const dbProducts = await prodRes.json();
 
-        // --- 1. DIRECT SALES (CASH) REPORT TYPE ---
+        // --- 1. DIRECT SALES (CASH) REPORT TYPE: ORGANIZED BY CATEGORY ---
         if (currentReportType === 'cash') {
+            const docTitle = document.getElementById('reportDocumentTitle');
+            if (docTitle) docTitle.innerText = "Sales Performance Report";
+
             tableHeader.innerHTML = `
-                <th style="padding: 10px 5px; width: 40%;">PRODUCT NAME</th>
-                <th style="padding: 10px 5px; width: 15%; text-align: center;">QTY SOLD</th>
-                <th style="padding: 10px 5px; width: 15%; text-align: right;">UNIT PRICE</th>
-                <th style="padding: 10px 5px; width: 15%; text-align: right;">GROSS SALES</th>
-                <th style="padding: 10px 5px; width: 15%; text-align: right;">NET PROFIT</th>
+                <th style="padding: 10px 8px; width: 42%;">ITEM NAME</th>
+                <th style="padding: 10px 8px; width: 14%; text-align: center;">ITEMS SOLD</th>
+                <th style="padding: 10px 8px; width: 14%; text-align: right;">UNIT PRICE</th>
+                <th style="padding: 10px 8px; width: 15%; text-align: right;">TOTAL SALES</th>
+                <th style="padding: 10px 8px; width: 15%; text-align: right;">TOTAL PROFIT</th>
             `;
 
             document.getElementById('reportMetric1Label').innerText = "Total Items Sold";
-            document.getElementById('reportMetric2Label').innerText = "Gross Revenue";
+            document.getElementById('reportMetric2Label').innerText = "Total Sales";
             document.getElementById('reportMetric3Label').innerText = "Total Profit";
             document.getElementById('reportMetric4Label').innerText = "Profit Margin";
             document.getElementById('reportTotalProfit').style.color = "#10b981";
@@ -2967,7 +3000,9 @@ async function generateReportEngine() {
                 return saleDate >= startDate && saleDate <= endDate;
             }).sort((a, b) => new Date(a.sale_date) - new Date(b.sale_date));
 
-            const itemMap = {};
+            // Group sales by Category -> Product Name -> Price Tiers
+            const categoryMap = {};
+
             filteredSales.forEach(sale => {
                 let items = [];
                 try {
@@ -2982,19 +3017,38 @@ async function generateReportEngine() {
                     const price = parseFloat(i.price) || 0;
                     const cost = parseFloat(i.cost) || 0;
 
-                    if (!itemMap[name]) {
-                        itemMap[name] = { 
-                            qty: 0, 
-                            gross: 0, 
-                            profit: 0, 
-                            priceTiers: {} 
+                    // Match product to retrieve its category
+                    const prodMatch = dbProducts.find(p => p.prod_name === name);
+                    const rawCat = (prodMatch?.prod_category || 'General').trim();
+                    const catKey = rawCat ? rawCat.toUpperCase() : 'GENERAL';
+
+                    if (!categoryMap[catKey]) {
+                        // Find theme icon
+                        const theme = categoryThemeRegistry[catKey] || { icon: "fa-solid fa-boxes-stacked" };
+                        categoryMap[catKey] = {
+                            name: catKey,
+                            icon: theme.icon || "fa-solid fa-boxes-stacked",
+                            totalQty: 0,
+                            totalGross: 0,
+                            totalProfit: 0,
+                            items: {}
                         };
                     }
 
-                    // Group by exact unit price tier
+                    const catObj = categoryMap[catKey];
+                    if (!catObj.items[name]) {
+                        catObj.items[name] = {
+                            qty: 0,
+                            gross: 0,
+                            profit: 0,
+                            priceTiers: {}
+                        };
+                    }
+
+                    const itemObj = catObj.items[name];
                     const tierKey = price.toFixed(2);
-                    if (!itemMap[name].priceTiers[tierKey]) {
-                        itemMap[name].priceTiers[tierKey] = {
+                    if (!itemObj.priceTiers[tierKey]) {
+                        itemObj.priceTiers[tierKey] = {
                             price: price,
                             cost: cost,
                             qty: 0,
@@ -3004,134 +3058,113 @@ async function generateReportEngine() {
                         };
                     }
 
-                    itemMap[name].priceTiers[tierKey].qty += qty;
-                    itemMap[name].priceTiers[tierKey].gross += (price * qty);
-                    itemMap[name].priceTiers[tierKey].profit += ((price - cost) * qty);
+                    itemObj.priceTiers[tierKey].qty += qty;
+                    itemObj.priceTiers[tierKey].gross += (price * qty);
+                    itemObj.priceTiers[tierKey].profit += ((price - cost) * qty);
 
-                    itemMap[name].qty += qty;
-                    itemMap[name].gross += (price * qty);
-                    itemMap[name].profit += ((price - cost) * qty);
+                    itemObj.qty += qty;
+                    itemObj.gross += (price * qty);
+                    itemObj.profit += ((price - cost) * qty);
+
+                    catObj.totalQty += qty;
+                    catObj.totalGross += (price * qty);
+                    catObj.totalProfit += ((price - cost) * qty);
                 });
-            });
-
-            Object.keys(itemMap).forEach(name => {
-                const p = dbProducts.find(prod => prod.prod_name === name);
-                const defaultPrice = p ? (parseFloat(p.orig_price) + parseFloat(p.price_capital)) : 0;
-                const defaultCost = p ? parseFloat(p.orig_price) : 0;
-
-                const tierKeys = Object.keys(itemMap[name].priceTiers);
-                tierKeys.forEach(key => {
-                    const tier = itemMap[name].priceTiers[key];
-                    if (tier.price === 0 && defaultPrice > 0) {
-                        tier.price = defaultPrice;
-                        tier.gross = tier.price * tier.qty;
-                    }
-                    if (tier.cost === 0 && defaultCost > 0) {
-                        tier.cost = defaultCost;
-                        tier.profit = (tier.price - tier.cost) * tier.qty;
-                    }
-                });
-
-                if (tierKeys.length === 0) {
-                    itemMap[name].priceTiers[defaultPrice.toFixed(2)] = {
-                        price: defaultPrice,
-                        cost: defaultCost,
-                        qty: itemMap[name].qty,
-                        gross: defaultPrice * itemMap[name].qty,
-                        profit: (defaultPrice - defaultCost) * itemMap[name].qty,
-                        firstDate: null
-                    };
-                }
-
-                // Recalculate summary from verified price tiers for absolute math integrity
-                const tiers = Object.values(itemMap[name].priceTiers);
-                itemMap[name].qty = tiers.reduce((acc, t) => acc + t.qty, 0);
-                itemMap[name].gross = tiers.reduce((acc, t) => acc + t.gross, 0);
-                itemMap[name].profit = tiers.reduce((acc, t) => acc + t.profit, 0);
             });
 
             let tableHtml = '';
-            let totalQty = 0;
-            let totalGross = 0;
-            let totalProfit = 0;
+            let grandTotalQty = 0;
+            let grandTotalGross = 0;
+            let grandTotalProfit = 0;
 
-            const sortedItems = Object.entries(itemMap).sort((a, b) => a[0].localeCompare(b[0]));
-            sortedItems.forEach(([name, data]) => {
-                totalQty += data.qty;
-                totalGross += data.gross;
-                totalProfit += data.profit;
+            const sortedCategories = Object.keys(categoryMap).sort();
 
-                // Sort tiers chronologically by earliest purchase date, then by price
-                const tiers = Object.values(data.priceTiers).sort((a, b) => {
-                    if (a.firstDate && b.firstDate) {
-                        const diff = new Date(a.firstDate) - new Date(b.firstDate);
-                        if (diff !== 0) return diff;
-                    }
-                    return a.price - b.price;
-                });
+            sortedCategories.forEach(catKey => {
+                const cat = categoryMap[catKey];
+                grandTotalQty += cat.totalQty;
+                grandTotalGross += cat.totalGross;
+                grandTotalProfit += cat.totalProfit;
 
-                if (tiers.length <= 1) {
-                    // Standard clean row for items sold at a single consistent price
-                    const singleTier = tiers[0] || { price: 0 };
-                    tableHtml += `
-                        <tr style="border-bottom: 1px solid #e2e8f0;">
-                            <td style="padding: 12px 5px; font-weight: 600; color: #1e293b;">${name}</td>
-                            <td style="padding: 12px 5px; text-align: center; font-weight: 700; color: #334155;">${data.qty} pcs</td>
-                            <td style="padding: 12px 5px; text-align: right; color: #475569;">₱${singleTier.price.toFixed(2)}</td>
-                            <td style="padding: 12px 5px; text-align: right; font-weight: 800; color: #0f172a;">₱${data.gross.toFixed(2)}</td>
-                            <td style="padding: 12px 5px; text-align: right; font-weight: 800; color: #10b981;">₱${data.profit.toFixed(2)}</td>
-                        </tr>
-                    `;
-                } else {
-                    // Multi-price item: Master row with badge + indented sub-rows for each price tier
-                    const minP = Math.min(...tiers.map(t => t.price));
-                    const maxP = Math.max(...tiers.map(t => t.price));
+                // Category Header Banner
+                tableHtml += `
+                    <tr style="background: #f1f5f9; border-top: 2px solid #cbd5e1; border-bottom: 2px solid #cbd5e1; page-break-after: avoid;">
+                        <td colspan="5" style="padding: 10px 12px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                                <span style="font-weight: 800; color: #0f172a; font-size: 0.92rem; text-transform: uppercase; letter-spacing: 0.5px;">
+                                    <i class="${cat.icon}" style="color: #64748b; margin-right: 6px;"></i> ${cat.name}
+                                </span>
+                                <span style="font-size: 0.8rem; color: #475569; font-weight: 700;">
+                                    Subtotal: ${cat.totalQty} items &nbsp;•&nbsp; Sales: <strong style="color: #0f172a;">₱${cat.totalGross.toFixed(2)}</strong> &nbsp;•&nbsp; Profit: <strong style="color: #10b981;">₱${cat.totalProfit.toFixed(2)}</strong>
+                                </span>
+                            </div>
+                        </td>
+                    </tr>
+                `;
 
-                    tableHtml += `
-                        <tr style="border-bottom: 1px dashed #cbd5e1; background: #fafbfc;">
-                            <td style="padding: 11px 5px; font-weight: 700; color: #0f172a;">
-                                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                                    <span>${name}</span>
-                                    <span style="display: inline-flex; align-items: center; gap: 4px; font-size: 0.68rem; font-weight: 700; background: #fef3c7; color: #b45309; padding: 2px 7px; border-radius: 4px; border: 1px solid #fde68a;" title="Sold at ${tiers.length} different price rates during this period">
-                                        <i class="fa-solid fa-tags" style="font-size: 0.65rem;"></i> Price Adjusted (${tiers.length} rates)
-                                    </span>
-                                </div>
-                            </td>
-                            <td style="padding: 11px 5px; text-align: center; font-weight: 800; color: #0f172a;">${data.qty} pcs</td>
-                            <td style="padding: 11px 5px; text-align: right; font-weight: 700; color: #64748b; font-size: 0.8rem;" title="Price range during this period">
-                                ₱${minP.toFixed(2)} – ₱${maxP.toFixed(2)}
-                            </td>
-                            <td style="padding: 11px 5px; text-align: right; font-weight: 800; color: #0f172a;">₱${data.gross.toFixed(2)}</td>
-                            <td style="padding: 11px 5px; text-align: right; font-weight: 800; color: #10b981;">₱${data.profit.toFixed(2)}</td>
-                        </tr>
-                    `;
-
-                    tiers.forEach((tier, idx) => {
-                        let tierBadge = '';
-                        if (tiers.length === 2) {
-                            tierBadge = idx === 0
-                                ? `<span style="font-size: 0.68rem; color: #64748b; background: #f1f5f9; padding: 1px 6px; border-radius: 4px; margin-left: 6px; border: 1px solid #e2e8f0; font-weight: 600;">Previous Price</span>`
-                                : `<span style="font-size: 0.68rem; color: #0369a1; background: #e0f2fe; padding: 1px 6px; border-radius: 4px; margin-left: 6px; border: 1px solid #bae6fd; font-weight: 600;">Updated Price</span>`;
-                        } else {
-                            tierBadge = `<span style="font-size: 0.68rem; color: #475569; background: #f1f5f9; padding: 1px 6px; border-radius: 4px; margin-left: 6px; border: 1px solid #e2e8f0; font-weight: 600;">Rate #${idx + 1}</span>`;
+                // Sorted products in this category
+                const sortedItems = Object.entries(cat.items).sort((a, b) => a[0].localeCompare(b[0]));
+                sortedItems.forEach(([name, data]) => {
+                    const tiers = Object.values(data.priceTiers).sort((a, b) => {
+                        if (a.firstDate && b.firstDate) {
+                            const diff = new Date(a.firstDate) - new Date(b.firstDate);
+                            if (diff !== 0) return diff;
                         }
+                        return a.price - b.price;
+                    });
 
-                        const isLastTier = idx === tiers.length - 1;
+                    if (tiers.length <= 1) {
+                        const singleTier = tiers[0] || { price: 0 };
                         tableHtml += `
-                            <tr style="border-bottom: ${isLastTier ? '1px solid #e2e8f0' : '1px dashed #f1f5f9'}; background: #f8fafc;">
-                                <td style="padding: 6px 5px 6px 28px; color: #475569; font-size: 0.82rem;">
-                                    <span style="color: #94a3b8; font-weight: 700; margin-right: 6px;">↳</span>
-                                    <span>Sold @ <strong style="color: #1e293b;">₱${tier.price.toFixed(2)}</strong></span>
-                                    ${tierBadge}
+                            <tr style="border-bottom: 1px solid #f1f5f9;">
+                                <td style="padding: 9px 8px 9px 24px; color: #1e293b; font-weight: 600;">
+                                    <span style="color: #94a3b8; margin-right: 6px;">•</span> ${name}
                                 </td>
-                                <td style="padding: 6px 5px; text-align: center; font-size: 0.82rem; color: #475569; font-weight: 600;">${tier.qty} pcs</td>
-                                <td style="padding: 6px 5px; text-align: right; font-size: 0.82rem; color: #64748b;">₱${tier.price.toFixed(2)}</td>
-                                <td style="padding: 6px 5px; text-align: right; font-size: 0.82rem; font-weight: 700; color: #334155;">₱${tier.gross.toFixed(2)}</td>
-                                <td style="padding: 6px 5px; text-align: right; font-size: 0.82rem; font-weight: 700; color: #059669;">₱${tier.profit.toFixed(2)}</td>
+                                <td style="padding: 9px 8px; text-align: center; color: #334155; font-weight: 700;">${data.qty} pcs</td>
+                                <td style="padding: 9px 8px; text-align: right; color: #64748b;">₱${singleTier.price.toFixed(2)}</td>
+                                <td style="padding: 9px 8px; text-align: right; font-weight: 800; color: #0f172a;">₱${data.gross.toFixed(2)}</td>
+                                <td style="padding: 9px 8px; text-align: right; font-weight: 800; color: #10b981;">₱${data.profit.toFixed(2)}</td>
                             </tr>
                         `;
-                    });
-                }
+                    } else {
+                        // Multi-tier price adjusted item
+                        const minP = Math.min(...tiers.map(t => t.price));
+                        const maxP = Math.max(...tiers.map(t => t.price));
+
+                        tableHtml += `
+                            <tr style="border-bottom: 1px dashed #cbd5e1; background: #fafbfc;">
+                                <td style="padding: 9px 8px 9px 24px; font-weight: 700; color: #0f172a;">
+                                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                        <span>• ${name}</span>
+                                        <span style="display: inline-flex; align-items: center; gap: 4px; font-size: 0.68rem; font-weight: 700; background: #fef3c7; color: #b45309; padding: 1px 6px; border-radius: 4px; border: 1px solid #fde68a;">
+                                            Price Adjusted (${tiers.length} rates)
+                                        </span>
+                                    </div>
+                                </td>
+                                <td style="padding: 9px 8px; text-align: center; font-weight: 800; color: #0f172a;">${data.qty} pcs</td>
+                                <td style="padding: 9px 8px; text-align: right; font-weight: 700; color: #64748b; font-size: 0.8rem;">
+                                    ₱${minP.toFixed(2)} – ₱${maxP.toFixed(2)}
+                                </td>
+                                <td style="padding: 9px 8px; text-align: right; font-weight: 800; color: #0f172a;">₱${data.gross.toFixed(2)}</td>
+                                <td style="padding: 9px 8px; text-align: right; font-weight: 800; color: #10b981;">₱${data.profit.toFixed(2)}</td>
+                            </tr>
+                        `;
+
+                        tiers.forEach((tier, idx) => {
+                            const isLastTier = idx === tiers.length - 1;
+                            tableHtml += `
+                                <tr style="border-bottom: ${isLastTier ? '1px solid #f1f5f9' : '1px dashed #f8fafc'}; background: #f8fafc;">
+                                    <td style="padding: 5px 8px 5px 44px; color: #64748b; font-size: 0.8rem;">
+                                        ↳ Sold @ <strong>₱${tier.price.toFixed(2)}</strong>
+                                    </td>
+                                    <td style="padding: 5px 8px; text-align: center; font-size: 0.8rem; color: #64748b;">${tier.qty} pcs</td>
+                                    <td style="padding: 5px 8px; text-align: right; font-size: 0.8rem; color: #64748b;">₱${tier.price.toFixed(2)}</td>
+                                    <td style="padding: 5px 8px; text-align: right; font-size: 0.8rem; font-weight: 700; color: #334155;">₱${tier.gross.toFixed(2)}</td>
+                                    <td style="padding: 5px 8px; text-align: right; font-size: 0.8rem; font-weight: 700; color: #059669;">₱${tier.profit.toFixed(2)}</td>
+                                </tr>
+                            `;
+                        });
+                    }
+                });
             });
 
             if (tableHtml === '') {
@@ -3139,47 +3172,64 @@ async function generateReportEngine() {
             }
             tableBody.innerHTML = tableHtml;
 
-            document.getElementById('reportTotalQty').innerText = `${totalQty} pcs`;
-            document.getElementById('reportTotalGross').innerText = `₱${totalGross.toFixed(2)}`;
-            document.getElementById('reportTotalProfit').innerText = `₱${totalProfit.toFixed(2)}`;
-            const margin = totalGross > 0 ? (totalProfit / totalGross) * 100 : 0;
+            document.getElementById('reportTotalQty').innerText = `${grandTotalQty} items`;
+            document.getElementById('reportTotalGross').innerText = `₱${grandTotalGross.toFixed(2)}`;
+            document.getElementById('reportTotalProfit').innerText = `₱${grandTotalProfit.toFixed(2)}`;
+            const margin = grandTotalGross > 0 ? (grandTotalProfit / grandTotalGross) * 100 : 0;
             document.getElementById('reportTotalMargin').innerText = `${margin.toFixed(2)}%`;
         }
 
-        // --- 2. CASH COLLECTIONS REPORT TYPE ---
+        // --- 2. CASH COLLECTIONS REPORT TYPE (WITH CREDITOR REMAINING BALANCE & FILTER) ---
         else if (currentReportType === 'collections') {
-            tableHeader.innerHTML = `
-                <th style="padding: 10px 5px; width: 18%;">DATE PAID</th>
-                <th style="padding: 10px 5px; width: 22%;">CUSTOMER NAME</th>
-                <th style="padding: 10px 5px; width: 38%;">ITEMS SETTLED</th>
-                <th style="padding: 10px 5px; width: 12%; text-align: right;">CASH RECEIVED</th>
-                <th style="padding: 10px 5px; width: 10%; text-align: right;">PROFIT REALIZED</th>
-            `;
+            const selectedCreditor = document.getElementById('reportCustomerFilter')?.value || 'ALL';
+            const isIndividual = selectedCreditor !== 'ALL';
 
-            document.getElementById('reportMetric1Label').innerText = "Payments Received";
-            document.getElementById('reportMetric2Label').innerText = "Cash Collected";
-            document.getElementById('reportMetric3Label').innerText = "Profit Realized";
-            document.getElementById('reportMetric4Label').innerText = "Realization Rate";
-            document.getElementById('reportTotalProfit').style.color = "#10b981";
-            document.getElementById('reportTotalMargin').style.color = "#f59e0b";
+            const docTitle = document.getElementById('reportDocumentTitle');
+            if (docTitle) {
+                docTitle.innerText = isIndividual 
+                    ? `Statement of Account: ${selectedCreditor}` 
+                    : "Cash Collections Report";
+            }
 
-            const utangRes = await fetch('http://localhost:3000/api/get-all-utang');
+            // Fetch utang data and customer profiles
+            const [utangRes, foldersRes] = await Promise.all([
+                fetch('http://localhost:3000/api/get-all-utang'),
+                fetch('http://localhost:3000/api/customer-folders').catch(() => null)
+            ]);
             const allUtang = await utangRes.json();
+            const allFolders = foldersRes ? await foldersRes.json() : [];
 
-            // Dynamic FIFO mapping to map payment rows to products settled
-            const customers = [...new Set(allUtang.map(u => u.customer_name))];
+            // Build map of customer current balances & credit limits
+            const customerBalanceMap = {};
+            const customerLimitMap = {};
+
+            if (Array.isArray(allFolders)) {
+                allFolders.forEach(f => {
+                    customerLimitMap[f.fullname] = parseFloat(f.credit_limit) || 2000.00;
+                });
+            }
+
+            const allCustomerNames = [...new Set(allUtang.map(u => u.customer_name))];
+            allCustomerNames.forEach(cust => {
+                const custTx = allUtang.filter(u => u.customer_name === cust);
+                const totalDebts = custTx.filter(u => !u.items_list.includes("Debt Payment")).reduce((s, d) => s + parseFloat(d.amount), 0);
+                const totalPayments = custTx.filter(u => u.items_list.includes("Debt Payment")).reduce((s, p) => s + parseFloat(p.amount), 0);
+                customerBalanceMap[cust] = Math.max(0, totalDebts - totalPayments);
+            });
+
+            // Calculate storewide active outstanding receivables
+            const storewideActiveDebt = Object.values(customerBalanceMap).reduce((sum, b) => sum + b, 0);
+
+            // FIFO settlement calculation for descriptions
             const paymentSettlements = {};
-
-            customers.forEach(cust => {
-                const custTx = allUtang.filter(u => u.customer_name === cust).reverse(); // oldest first
+            allCustomerNames.forEach(cust => {
+                const custTx = allUtang.filter(u => u.customer_name === cust).reverse();
                 const debts = custTx.filter(u => !u.items_list.includes("Debt Payment"));
                 const payments = custTx.filter(u => u.items_list.includes("Debt Payment"));
 
                 let debtQueue = debts.map(d => {
                     let items = [];
-                    try {
-                        items = JSON.parse(d.items_list);
-                    } catch(e) {}
+                    try { items = JSON.parse(d.items_list); } catch(e) {}
                     return {
                         utang_id: d.utang_id,
                         amount: parseFloat(d.amount),
@@ -3221,12 +3271,37 @@ async function generateReportEngine() {
                 });
             });
 
-            // Filter payment events in period
-            const periodPayments = allUtang.filter(tx => {
+            // Filter payments in date period
+            let periodPayments = allUtang.filter(tx => {
                 if (!tx.items_list.includes("Debt Payment")) return false;
                 const d = new Date(tx.date_borrowed);
                 return d >= startDate && d <= endDate;
             });
+
+            // Apply Creditor Filter if specific creditor chosen
+            if (isIndividual) {
+                periodPayments = periodPayments.filter(tx => tx.customer_name === selectedCreditor);
+            }
+
+            // Build Table Header
+            if (isIndividual) {
+                tableHeader.innerHTML = `
+                    <th style="padding: 10px 6px; width: 16%;">DATE PAID</th>
+                    <th style="padding: 10px 6px; width: 36%;">ITEMS SETTLED</th>
+                    <th style="padding: 10px 6px; width: 16%; text-align: right;">CASH PAID</th>
+                    <th style="padding: 10px 6px; width: 16%; text-align: right;">REMAINING DEBT</th>
+                    <th style="padding: 10px 6px; width: 16%; text-align: right;">PROFIT</th>
+                `;
+            } else {
+                tableHeader.innerHTML = `
+                    <th style="padding: 10px 6px; width: 14%;">DATE PAID</th>
+                    <th style="padding: 10px 6px; width: 20%;">CUSTOMER NAME</th>
+                    <th style="padding: 10px 6px; width: 26%;">ITEMS SETTLED</th>
+                    <th style="padding: 10px 6px; width: 13%; text-align: right;">CASH PAID</th>
+                    <th style="padding: 10px 6px; width: 15%; text-align: right;">REMAINING DEBT</th>
+                    <th style="padding: 10px 6px; width: 12%; text-align: right;">PROFIT</th>
+                `;
+            }
 
             let tableHtml = '';
             let totalCollected = 0;
@@ -3238,32 +3313,85 @@ async function generateReportEngine() {
                 totalCollected += amt;
                 totalProfitRealized += prof;
 
-                tableHtml += `
-                    <tr style="border-bottom: 1px solid #e2e8f0;">
-                        <td style="padding: 12px 5px; color: #475569;">${new Date(tx.date_borrowed).toLocaleDateString()}</td>
-                        <td style="padding: 12px 5px; font-weight: 600; color: #1e293b;">${tx.customer_name}</td>
-                        <td style="padding: 12px 5px; color: #475569; font-size: 0.8rem;">${paymentSettlements[tx.utang_id] || 'Debt Balance Settlement'}</td>
-                        <td style="padding: 12px 5px; text-align: right; font-weight: 800; color: #0f172a;">₱${amt.toFixed(2)}</td>
-                        <td style="padding: 12px 5px; text-align: right; font-weight: 800; color: #10b981;">₱${prof.toFixed(2)}</td>
-                    </tr>
-                `;
+                const custBal = customerBalanceMap[tx.customer_name] || 0;
+                const balancePill = custBal <= 0
+                    ? `<span style="color: #059669; font-weight: 700; background: #ecfdf5; padding: 2px 7px; border-radius: 4px; font-size: 0.78rem;">₱0.00 (Settled)</span>`
+                    : `<strong style="color: #be123c;">₱${custBal.toFixed(2)}</strong>`;
+
+                if (isIndividual) {
+                    tableHtml += `
+                        <tr style="border-bottom: 1px solid #e2e8f0;">
+                            <td style="padding: 11px 6px; color: #475569;">${new Date(tx.date_borrowed).toLocaleDateString()}</td>
+                            <td style="padding: 11px 6px; color: #475569; font-size: 0.8rem;">${paymentSettlements[tx.utang_id] || 'Debt Balance Settlement'}</td>
+                            <td style="padding: 11px 6px; text-align: right; font-weight: 800; color: #0f172a;">₱${amt.toFixed(2)}</td>
+                            <td style="padding: 11px 6px; text-align: right;">${balancePill}</td>
+                            <td style="padding: 11px 6px; text-align: right; font-weight: 800; color: #10b981;">₱${prof.toFixed(2)}</td>
+                        </tr>
+                    `;
+                } else {
+                    tableHtml += `
+                        <tr style="border-bottom: 1px solid #e2e8f0;">
+                            <td style="padding: 11px 6px; color: #475569;">${new Date(tx.date_borrowed).toLocaleDateString()}</td>
+                            <td style="padding: 11px 6px; font-weight: 700; color: #1e293b;">${tx.customer_name}</td>
+                            <td style="padding: 11px 6px; color: #475569; font-size: 0.8rem;">${paymentSettlements[tx.utang_id] || 'Debt Balance Settlement'}</td>
+                            <td style="padding: 11px 6px; text-align: right; font-weight: 800; color: #0f172a;">₱${amt.toFixed(2)}</td>
+                            <td style="padding: 11px 6px; text-align: right;">${balancePill}</td>
+                            <td style="padding: 11px 6px; text-align: right; font-weight: 800; color: #10b981;">₱${prof.toFixed(2)}</td>
+                        </tr>
+                    `;
+                }
             });
 
             if (tableHtml === '') {
-                tableHtml = `<tr><td colspan="5" style="text-align: center; padding: 40px; color: #94a3b8; font-style: italic;"><i class="fa-solid fa-receipt" style="display:block; font-size:1.8rem; margin-bottom:10px;"></i> No cash collections recorded for this period.</td></tr>`;
+                const emptyMsg = isIndividual 
+                    ? `No payment records found for "${selectedCreditor}" within this period.`
+                    : "No cash collections recorded for this period.";
+                tableHtml = `<tr><td colspan="6" style="text-align: center; padding: 40px; color: #94a3b8; font-style: italic;"><i class="fa-solid fa-receipt" style="display:block; font-size:1.8rem; margin-bottom:10px;"></i> ${emptyMsg}</td></tr>`;
             }
             tableBody.innerHTML = tableHtml;
 
-            document.getElementById('reportTotalQty').innerText = `${periodPayments.length} payments`;
-            document.getElementById('reportTotalGross').innerText = `₱${totalCollected.toFixed(2)}`;
-            document.getElementById('reportTotalProfit').innerText = `₱${totalProfitRealized.toFixed(2)}`;
-            const rate = totalCollected > 0 ? (totalProfitRealized / totalCollected) * 100 : 0;
-            document.getElementById('reportTotalMargin').innerText = `${rate.toFixed(2)}%`;
+            // Summary Cards Footer
+            if (isIndividual) {
+                const singleCustBalance = customerBalanceMap[selectedCreditor] || 0;
+                const singleCustLimit = customerLimitMap[selectedCreditor] || 2000.00;
+
+                document.getElementById('reportMetric1Label').innerText = "Payments Recorded";
+                document.getElementById('reportMetric2Label').innerText = "Total Cash Paid";
+                document.getElementById('reportMetric3Label').innerText = "Remaining Debt";
+                document.getElementById('reportMetric4Label').innerText = "Credit Limit";
+
+                document.getElementById('reportTotalQty').innerText = `${periodPayments.length} payments`;
+                document.getElementById('reportTotalGross').innerText = `₱${totalCollected.toFixed(2)}`;
+                
+                const debtEl = document.getElementById('reportTotalProfit');
+                debtEl.innerText = singleCustBalance <= 0 ? "₱0.00 (Settled)" : `₱${singleCustBalance.toFixed(2)}`;
+                debtEl.style.color = singleCustBalance > 0 ? "#be123c" : "#10b981";
+
+                const limitEl = document.getElementById('reportTotalMargin');
+                limitEl.innerText = `₱${singleCustLimit.toFixed(2)}`;
+                limitEl.style.color = "#2563eb";
+            } else {
+                document.getElementById('reportMetric1Label').innerText = "Payments Received";
+                document.getElementById('reportMetric2Label').innerText = "Total Cash Collected";
+                document.getElementById('reportMetric3Label').innerText = "Profit Realized";
+                document.getElementById('reportMetric4Label').innerText = "Active Store Receivables";
+
+                document.getElementById('reportTotalQty').innerText = `${periodPayments.length} payments`;
+                document.getElementById('reportTotalGross').innerText = `₱${totalCollected.toFixed(2)}`;
+                
+                const profEl = document.getElementById('reportTotalProfit');
+                profEl.innerText = `₱${totalProfitRealized.toFixed(2)}`;
+                profEl.style.color = "#10b981";
+
+                const receivablesEl = document.getElementById('reportTotalMargin');
+                receivablesEl.innerText = `₱${storewideActiveDebt.toFixed(2)}`;
+                receivablesEl.style.color = "#be123c";
+            }
         }
 
     } catch (err) {
         console.error("Report generation failed:", err);
-        tableBody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 30px; color: #ef4444; font-weight: 600;">Failed to fetch transactional streams from database.</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 30px; color: #ef4444; font-weight: 600;">Failed to fetch transactional streams from database.</td></tr>';
     }
 }
 
