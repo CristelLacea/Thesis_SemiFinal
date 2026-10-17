@@ -983,6 +983,35 @@
     </div>
 </div>
 
+<!-- 5-MINUTE INACTIVITY WARNING MODAL -->
+<div id="inactivityWarningModal" class="modal" style="display: none; z-index: 99999;">
+    <div class="modal-content" style="max-width: 420px; text-align: center; padding: 28px 24px; border-radius: 16px; box-shadow: 0 20px 40px rgba(0,0,0,0.25);">
+        <div style="width: 58px; height: 58px; background: #fff1f2; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px auto;">
+            <i class="fa-solid fa-clock-rotate-left" style="font-size: 1.8rem; color: #e11d48;"></i>
+        </div>
+        
+        <h3 style="margin: 0 0 8px 0; font-size: 1.25rem; font-weight: 800; color: #0f172a;">Session Timeout Warning</h3>
+        <p style="margin: 0 0 16px 0; font-size: 0.88rem; color: #64748b; line-height: 1.5;">
+            You have been inactive for over 4 minutes. For store financial security, your management session will automatically log out in:
+        </p>
+
+        <!-- Countdown Pill Display -->
+        <div style="background: #fff1f2; border: 1px solid #fecdd3; border-radius: 12px; padding: 12px 16px; margin-bottom: 22px;">
+            <span style="font-size: 0.72rem; font-weight: 800; color: #9f1239; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 2px;">Auto-Logout In</span>
+            <span id="inactivityCountdownDisplay" style="font-size: 2.2rem; font-weight: 900; color: #be123c; line-height: 1;">30s</span>
+        </div>
+
+        <div style="display: flex; gap: 10px; justify-content: center;">
+            <button type="button" class="cancel-btn" onclick="performManagementAutoLogout()" style="flex: 1; padding: 11px; font-weight: 700; border-radius: 10px; cursor: pointer; border: 1px solid #cbd5e1; background: #f8fafc; color: #475569;">
+                Logout Now
+            </button>
+            <button type="button" class="save-btn" onclick="keepSessionAlive()" style="flex: 1; padding: 11px; background: #10b981; color: white; font-weight: 800; border-radius: 10px; cursor: pointer; border: none; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);">
+                <i class="fa-solid fa-hand"></i> Stay Logged In
+            </button>
+        </div>
+    </div>
+</div>
+
 <!-- Move these to the very bottom of the file, outside of all modals -->
 <script src="management.js"></script>
 <script src="auth.js"></script>

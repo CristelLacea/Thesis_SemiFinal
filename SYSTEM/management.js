@@ -3481,3 +3481,126 @@ function closeBatchViewerModal() {
     if (modal) modal.style.display = 'none';
     activeBatchViewerProdId = null;
 }
+
+
+// ==========================================================================
+// 5-MINUTE MANAGEMENT SESSION INACTIVITY AUTO-LOGOUT
+// ==========================================================================
+const INACTIVITY_TOTAL_LIMIT_MS = 5 * 60 * 1000; // 5 minutes (300,000 ms)
+const INACTIVITY_WARNING_OFFSET_MS = 30 * 1000;  // Warn 30 seconds before logout (270,000 ms)
+const WARNING_TRIGGER_MS = INACTIVITY_TOTAL_LIMIT_MS - INACTIVITY_WARNING_OFFSET_MS;
+
+let inactivityWarningTimer = null;
+let inactivityCountdownInterval = null;
+let inactivityRemainingSeconds = 30;
+
+function resetInactivityTimer() {
+    // If the warning modal is currently shown, user activity (like moving mouse or clicking button) will keep session alive
+    const warningModal = document.getElementById('inactivityWarningModal');
+    if (warningModal && warningModal.style.display === 'flex') {
+        return;
+    }
+
+    // Clear existing timers
+    if (inactivityWarningTimer) {
+        clearTimeout(inactivityWarningTimer);
+    }
+    if (inactivityCountdownInterval) {
+        clearInterval(inactivityCountdownInterval);
+    }
+
+    // Set new timer to trigger warning at 4m 30s
+    inactivityWarningTimer = setTimeout(showInactivityWarning, WARNING_TRIGGER_MS);
+}
+
+function showInactivityWarning() {
+    inactivityRemainingSeconds = 30;
+    const modal = document.getElementById('inactivityWarningModal');
+    const display = document.getElementById('inactivityCountdownDisplay');
+    if (display) display.innerText = '30s';
+    if (modal) modal.style.display = 'flex';
+
+    if (inactivityCountdownInterval) clearInterval(inactivityCountdownInterval);
+    inactivityCountdownInterval = setInterval(() => {
+        inactivityRemainingSeconds--;
+        if (display) display.innerText = `${inactivityRemainingSeconds}s`;
+
+        if (inactivityRemainingSeconds <= 0) {
+            clearInterval(inactivityCountdownInterval);
+            performManagementAutoLogout();
+        }
+    }, 1000);
+}
+
+function keepSessionAlive() {
+    const modal = document.getElementById('inactivityWarningModal');
+    if (modal) modal.style.display = 'none';
+
+    if (inactivityCountdownInterval) {
+        clearInterval(inactivityCountdownInterval);
+    }
+
+    // Restart fresh 5-minute cycle
+    if (inactivityWarningTimer) clearTimeout(inactivityWarningTimer);
+    inactivityWarningTimer = setTimeout(showInactivityWarning, WARNING_TRIGGER_MS);
+}
+
+async function performManagementAutoLogout() {
+    if (inactivityWarningTimer) clearTimeout(inactivityWarningTimer);
+    if (inactivityCountdownInterval) clearInterval(inactivityCountdownInterval);
+
+    const userEmail = localStorage.getItem('currentUser');
+    if (userEmail) {
+        try {
+            await fetch('http://localhost:3000/api/logout', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-user-email': userEmail
+                },
+                body: JSON.stringify({ email: userEmail, reason: 'inactivity_timeout' })
+            });
+        } catch (err) {
+            console.error("Auto logout API notify error:", err);
+        }
+    }
+
+    // Store inactivity reason flag for login page notice
+    sessionStorage.setItem('logoutReason', 'inactivity');
+
+    // Clear session credentials
+    localStorage.removeItem('currentUser');
+    localStorage.removeItem('userRole');
+
+    // Redirect to login page
+    window.location.href = 'login.html';
+}
+
+// Bind activity listeners specifically for the Management Panel
+function initInactivityDetector() {
+    const activityEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'];
+    
+    // Debounced listener to avoid high CPU on continuous mouse movements
+    let lastActivityCall = 0;
+    const handleUserActivity = () => {
+        const now = Date.now();
+        if (now - lastActivityCall > 1000) { // check at most once per second
+            lastActivityCall = now;
+            resetInactivityTimer();
+        }
+    };
+
+    activityEvents.forEach(evt => {
+        window.addEventListener(evt, handleUserActivity, { passive: true });
+    });
+
+    // Start initial timer
+    resetInactivityTimer();
+}
+
+// Initialize on page load
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initInactivityDetector);
+} else {
+    initInactivityDetector();
+}

@@ -11,6 +11,20 @@ window.fetch = function (url, options = {}) {
     return originalFetch(processedUrl, options);
 };
 
+// Check if user was redirected due to 5-minute inactivity timeout in Management
+window.addEventListener('DOMContentLoaded', () => {
+    try {
+        const reason = sessionStorage.getItem('logoutReason');
+        if (reason === 'inactivity') {
+            sessionStorage.removeItem('logoutReason');
+            const notice = document.getElementById('loginNotice');
+            if (notice) notice.style.display = 'block';
+        }
+    } catch (e) {
+        console.warn("Storage check failed:", e);
+    }
+});
+
 let isLoggingIn = false;
 document.querySelector('.login-form').addEventListener('submit', function(e) {
     e.preventDefault(); 
