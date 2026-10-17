@@ -453,23 +453,27 @@
                 <div class="terminal-divider"></div>
                 
                 <!-- Cash Payment Terminal -->
-                <div class="payment-collection-terminal" id="paymentInputTerminal">
-                    <span class="terminal-input-label"><i class="fa-solid fa-hand-holding-dollar"></i> Record Cash Payment:</span>
-                    
-                    <!-- Quick Full Payment Auto-Fill Button -->
-                    <button type="button" id="btnQuickPayFull" onclick="fillFullPayment()" class="terminal-quick-pay-btn" title="One-click full balance payoff">
-                        <span><i class="fa-solid fa-bolt"></i> Pay Full Balance:</span>
-                        <strong id="quickPayAmountDisplay">₱0.00</strong>
-                    </button>
+                <div class="payment-collection-terminal" id="paymentInputTerminal" style="display: flex; flex-direction: column; gap: 12px; width: 100%;">
+                    <div id="paymentInputsWrapper" style="display: flex; flex-direction: column; gap: 12px; width: 100%;">
+                        <span class="terminal-input-label"><i class="fa-solid fa-hand-holding-dollar"></i> Record Cash Payment:</span>
+                        
+                        <!-- Quick Full Payment Auto-Fill Button -->
+                        <button type="button" id="btnQuickPayFull" onclick="fillFullPayment()" class="terminal-quick-pay-btn" title="One-click full balance payoff">
+                            <span><i class="fa-solid fa-bolt"></i> Pay Full Balance:</span>
+                            <strong id="quickPayAmountDisplay">₱0.00</strong>
+                        </button>
 
-                    <div class="terminal-input-wrapper">
-                        <span class="terminal-currency-symbol">₱</span>
-                        <input type="number" id="ledgerPaymentInput" placeholder="0.00" step="0.01" min="0.01" autocomplete="off">
+                        <div class="terminal-input-wrapper">
+                            <span class="terminal-currency-symbol">₱</span>
+                            <input type="number" id="ledgerPaymentInput" placeholder="0.00" step="0.01" min="0.01" autocomplete="off">
+                        </div>
+                        
+                        <button type="button" class="terminal-submit-pay-btn" onclick="submitLedgerPayment()">
+                            <i class="fa-solid fa-circle-check"></i> Proceed Payment
+                        </button>
                     </div>
                     
-                    <button class="terminal-submit-pay-btn" onclick="submitLedgerPayment()">
-                        <i class="fa-solid fa-circle-check"></i> Proceed Payment
-                    </button>
+                    <div id="paymentSettledNotice" style="display: none; width: 100%;"></div>
                 </div>
             </div>
 

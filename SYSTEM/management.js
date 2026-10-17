@@ -1449,10 +1449,10 @@ async function submitLedgerPayment() {
         return alert(`Validation Error: Payment amount (₱${cashValue.toFixed(2)}) cannot exceed the total outstanding debt of ₱${currentDebt.toFixed(2)}.`);
     }
 
-    const payBtns = document.querySelectorAll('.proceed-payment-btn, .full-pay-btn');
+    const payBtns = document.querySelectorAll('.proceed-payment-btn, .full-pay-btn, .terminal-submit-pay-btn');
     payBtns.forEach(b => {
         b.disabled = true;
-        b.dataset.originalText = b.innerText;
+        b.dataset.originalHtml = b.innerHTML;
         b.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processing...';
     });
 
@@ -1485,7 +1485,7 @@ async function submitLedgerPayment() {
         isLedgerPaymentProcessing = false;
         payBtns.forEach(b => {
             b.disabled = false;
-            b.innerText = b.dataset.originalText || "Proceed Payment";
+            b.innerHTML = b.dataset.originalHtml || '<i class="fa-solid fa-circle-check"></i> Proceed Payment';
         });
     }
 }
@@ -1985,7 +1985,20 @@ async function renderSpecificLedger(customerName) {
             }
 
             const trackingTerminal = document.getElementById('paymentInputTerminal');
-            if (trackingTerminal) trackingTerminal.style.display = 'none';
+            const inputsWrapper = document.getElementById('paymentInputsWrapper');
+            const settledNotice = document.getElementById('paymentSettledNotice');
+            if (inputsWrapper) inputsWrapper.style.display = 'none';
+            if (settledNotice) {
+                settledNotice.innerHTML = `
+                    <div style="background: #ecfdf5; border: 1px solid #a7f3d0; padding: 15px; border-radius: 12px; text-align: center; color: #065f46; font-weight: 700; font-size: 0.92rem; width: 100%;">
+                        <i class="fa-solid fa-circle-check"></i> Account is in Good Standing (No Debt)
+                    </div>`;
+                settledNotice.style.display = 'block';
+            }
+            if (trackingTerminal) {
+                trackingTerminal.style.display = 'flex';
+                trackingTerminal.style.flexDirection = 'column';
+            }
             return;
         }
 
@@ -2167,22 +2180,39 @@ async function renderSpecificLedger(customerName) {
 
         // Payment Terminal State
         const trackingTerminal = document.getElementById('paymentInputTerminal');
+        const inputsWrapper = document.getElementById('paymentInputsWrapper');
+        const settledNotice = document.getElementById('paymentSettledNotice');
+
         if (trackingTerminal) {
+            trackingTerminal.style.display = 'flex';
+            trackingTerminal.style.flexDirection = 'column';
+
             if (typeof currentFolderViewTab !== 'undefined' && currentFolderViewTab === 'ARCHIVED') {
-                trackingTerminal.innerHTML = `
-                    <div style="background: #ecfdf5; border: 1px solid #a7f3d0; padding: 15px; border-radius: 12px; text-align: center; color: #065f46; font-weight: 700; font-size: 0.95rem; margin-top: 10px; width: 100%;">
-                        <i class="fa-solid fa-circle-check"></i> The Debt is Fully Paid
-                    </div>`;
-                trackingTerminal.style.display = 'block';
+                if (inputsWrapper) inputsWrapper.style.display = 'none';
+                if (settledNotice) {
+                    settledNotice.innerHTML = `
+                        <div style="background: #ecfdf5; border: 1px solid #a7f3d0; padding: 15px; border-radius: 12px; text-align: center; color: #065f46; font-weight: 700; font-size: 0.95rem; width: 100%;">
+                            <i class="fa-solid fa-circle-check"></i> The Debt is Fully Paid
+                        </div>`;
+                    settledNotice.style.display = 'block';
+                }
             } else if (effectiveDebt <= 0) {
-                trackingTerminal.innerHTML = `
-                    <div style="background: #ecfdf5; border: 1px solid #a7f3d0; padding: 15px; border-radius: 12px; text-align: center; color: #065f46; font-weight: 700; font-size: 0.92rem; width: 100%;">
-                        <i class="fa-solid fa-circle-check"></i> Account is in Good Standing (No Debt)
-                    </div>`;
-                trackingTerminal.style.display = 'block';
+                if (inputsWrapper) inputsWrapper.style.display = 'none';
+                if (settledNotice) {
+                    settledNotice.innerHTML = `
+                        <div style="background: #ecfdf5; border: 1px solid #a7f3d0; padding: 15px; border-radius: 12px; text-align: center; color: #065f46; font-weight: 700; font-size: 0.92rem; width: 100%;">
+                            <i class="fa-solid fa-circle-check"></i> Account is in Good Standing (No Debt)
+                        </div>`;
+                    settledNotice.style.display = 'block';
+                }
             } else {
-                // Ensure inputs & buttons are active
-                trackingTerminal.style.display = 'flex';
+                if (inputsWrapper) {
+                    inputsWrapper.style.display = 'flex';
+                    inputsWrapper.style.flexDirection = 'column';
+                }
+                if (settledNotice) {
+                    settledNotice.style.display = 'none';
+                }
             }
         }
 

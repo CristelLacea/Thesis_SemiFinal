@@ -1567,6 +1567,7 @@ td {
     display: flex;
     flex-direction: column;
     gap: 14px;
+    box-sizing: border-box;
 }
 
 .terminal-header-title {
@@ -1691,6 +1692,23 @@ td {
 }
 
 /* Payment Input Terminal */
+.payment-collection-terminal,
+#paymentInputTerminal {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+}
+
+#paymentInputsWrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
 .terminal-input-label {
     font-size: 0.8rem;
     font-weight: 700;
@@ -1698,19 +1716,23 @@ td {
     display: flex;
     align-items: center;
     gap: 6px;
+    margin: 0;
 }
 
 .terminal-quick-pay-btn {
     background: #f0fdf4;
     border: 1px dashed #86efac;
     color: #166534;
-    padding: 7px 12px;
+    padding: 9px 14px;
     border-radius: 8px;
-    font-size: 0.78rem;
+    font-size: 0.82rem;
+    font-weight: 700;
     cursor: pointer;
     display: flex;
     justify-content: space-between;
     align-items: center;
+    width: 100%;
+    box-sizing: border-box;
     transition: all 0.2s ease;
 }
 
@@ -1719,9 +1741,15 @@ td {
     border-color: #22c55e;
 }
 
+.terminal-quick-pay-btn strong {
+    color: #15803d;
+    font-size: 0.88rem;
+}
+
 .terminal-input-wrapper {
     position: relative;
     width: 100%;
+    box-sizing: border-box;
 }
 
 .terminal-currency-symbol {
@@ -1732,11 +1760,12 @@ td {
     font-weight: 800;
     color: #64748b;
     font-size: 1rem;
+    pointer-events: none;
 }
 
 .terminal-input-wrapper input {
     width: 100%;
-    padding: 10px 12px 10px 30px;
+    padding: 10px 14px 10px 32px;
     border-radius: 10px;
     border: 1px solid #cbd5e1;
     font-size: 1rem;
@@ -1769,6 +1798,7 @@ td {
     gap: 8px;
     box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
     transition: all 0.2s ease;
+    box-sizing: border-box;
 }
 
 .terminal-submit-pay-btn:hover {
