@@ -286,7 +286,7 @@
                             <th style="padding: 14px;">Image</th>
                             <th style="padding: 14px;">Product Name</th>
                             <th style="padding: 14px;">Original Price</th>
-                            <th style="padding: 14px;">Capital Mark</th>
+                            <th style="padding: 14px;">Markup</th>
                             <th style="padding: 14px; font-weight: 800;">Retail Sale Price</th>
                             <th style="padding: 14px; text-align: center;">Stock Qty</th>
                             <th style="padding: 14px; text-align: center;"><i class="fa-solid fa-star" style="color:#64748b;"></i></th>
@@ -403,7 +403,7 @@
                 </select>
                 <div class="input-row">
                     <div><label>Original Price</label><input type="number" id="prodOrigPrice" step="0.01" required oninput="autoCalcSalePrice()"></div>
-                    <div><label>Capital</label><input type="number" id="prodCapital" step="0.01" required oninput="autoCalcSalePrice()"></div>
+                    <div><label>Markup</label><input type="number" id="prodCapital" step="0.01" required oninput="autoCalcSalePrice()"></div>
                 </div>
                 <div class="sale-price-display"><label>Auto-Calculated Sale Price:</label><span id="autoSalePrice">₱0.00</span></div>
                 <input type="number" id="prodStock" placeholder="Stock Quantity" required>
