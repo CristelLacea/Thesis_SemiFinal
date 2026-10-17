@@ -313,7 +313,7 @@
         </div>
     </div>
     
-    <!-- Executive KPI Metrics Grid -->
+    <!-- Executive KPI Metrics Grid (Compact 3-Card Summary) -->
     <div id="ledgerKpiGrid" class="ledger-kpi-grid">
         <div class="ledger-kpi-card kpi-card-rose">
             <div class="kpi-icon-bubble"><i class="fa-solid fa-coins"></i></div>
@@ -339,36 +339,24 @@
                 <span class="kpi-sub">Near or reached credit ceiling</span>
             </div>
         </div>
-        <div class="ledger-kpi-card kpi-card-emerald">
-            <div class="kpi-icon-bubble"><i class="fa-solid fa-shield-halved"></i></div>
-            <div class="kpi-details">
-                <span class="kpi-label">Store Credit Line</span>
-                <p id="kpiTotalCreditLimit" class="kpi-number">₱0.00</p>
-                <span id="kpiStoreUtilization" class="kpi-sub">0.0% storewide utilized</span>
-            </div>
-        </div>
     </div>
 
     <!-- Real-time Folder Search & Sort Bar -->
     <div id="ledgerSearchToolbar" class="ledger-toolbar">
+        <div class="sort-select-wrapper">
+            <label for="sortCreditFolders"><i class="fa-solid fa-arrow-down-wide-short"></i> Sort:</label>
+            <select id="sortCreditFolders" onchange="filterCustomerFolders(document.getElementById('searchCreditCustomer').value)">
+                <option value="debt-desc">Highest Debt First</option>
+                <option value="debt-asc">Lowest Debt First</option>
+                <option value="name-asc">Customer Name (A-Z)</option>
+                <option value="name-desc">Customer Name (Z-A)</option>
+                <option value="recent">Recently Active</option>
+            </select>
+        </div>
         <div class="ledger-search-box">
             <i class="fa-solid fa-magnifying-glass"></i>
             <input type="text" id="searchCreditCustomer" placeholder="Search customer folder by name, contact, or address..." oninput="filterCustomerFolders(this.value)" autocomplete="off">
             <button type="button" id="clearCreditSearchBtn" onclick="clearCreditSearch()" style="display:none;" title="Clear Search"><i class="fa-solid fa-xmark"></i></button>
-        </div>
-        <div class="ledger-toolbar-actions">
-            <div class="sort-select-wrapper">
-                <label for="sortCreditFolders"><i class="fa-solid fa-arrow-down-wide-short"></i> Sort:</label>
-                <select id="sortCreditFolders" onchange="filterCustomerFolders(document.getElementById('searchCreditCustomer').value)">
-                    <option value="debt-desc">Highest Debt First</option>
-                    <option value="debt-asc">Lowest Debt First</option>
-                    <option value="util-desc">Highest % Utilization</option>
-                    <option value="name-asc">Customer Name (A-Z)</option>
-                    <option value="name-desc">Customer Name (Z-A)</option>
-                    <option value="recent">Recently Active</option>
-                </select>
-            </div>
-            <span id="folderCountBadge" class="folder-count-badge"></span>
         </div>
     </div>
 

@@ -825,52 +825,46 @@ td {
 .btn-cancel { background: #f1f5f9; color: #64748b; margin-top: 10px; }
 
 /* ==========================================================================
-   EXECUTIVE CREDIT LEDGER KPI & MODERN FOLDER CARDS REDESIGN
+   EXECUTIVE CREDIT LEDGER KPI & COMPACT FOLDER CARDS
    ========================================================================== */
 
-/* 1. Executive KPI Metrics Grid */
+/* 1. Streamlined Executive KPI Metrics Grid (3 Compact Cards) */
 .ledger-kpi-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 18px;
-    margin-bottom: 24px;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 14px;
 }
 
-@media (max-width: 1200px) {
-    .ledger-kpi-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
-}
-
-@media (max-width: 650px) {
+@media (max-width: 900px) {
     .ledger-kpi-grid {
         grid-template-columns: 1fr;
     }
 }
 
 .ledger-kpi-card {
-    padding: 18px 20px;
-    border-radius: 16px;
+    padding: 9px 14px;
+    border-radius: 12px;
     display: flex;
     align-items: center;
-    gap: 15px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
-    transition: transform 0.25s ease, box-shadow 0.25s ease;
+    gap: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .ledger-kpi-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.05);
 }
 
 .kpi-icon-bubble {
-    width: 48px;
-    height: 48px;
-    border-radius: 12px;
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.25rem;
+    font-size: 0.95rem;
     flex-shrink: 0;
 }
 
@@ -881,16 +875,17 @@ td {
 }
 
 .kpi-label {
-    font-size: 0.72rem;
+    font-size: 0.65rem;
     font-weight: 800;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.4px;
+    line-height: 1.1;
 }
 
 .kpi-number {
-    font-size: 1.45rem;
+    font-size: 1.15rem;
     font-weight: 900;
-    margin: 2px 0;
+    margin: 1px 0;
     line-height: 1.2;
     white-space: nowrap;
     overflow: hidden;
@@ -898,11 +893,12 @@ td {
 }
 
 .kpi-sub {
-    font-size: 0.74rem;
+    font-size: 0.66rem;
     font-weight: 600;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    line-height: 1.1;
 }
 
 /* Color Themes for KPI Cards */
@@ -942,89 +938,19 @@ td {
 .kpi-card-fuchsia .kpi-number { color: #a21caf; }
 .kpi-card-fuchsia .kpi-sub { color: #c026d3; }
 
-.kpi-card-emerald {
-    background: linear-gradient(135deg, #f0fdf4, #dcfce7);
-    border: 1px solid #bbf7d0;
-}
-.kpi-card-emerald .kpi-icon-bubble {
-    background: #10b981;
-    color: white;
-}
-.kpi-card-emerald .kpi-label { color: #166534; }
-.kpi-card-emerald .kpi-number { color: #15803d; }
-.kpi-card-emerald .kpi-sub { color: #16a34a; }
-
-/* 2. Unified Search & Sort Toolbar */
+/* 2. Unified Search & Sort Toolbar (Left Sort, Right Search) */
 .ledger-toolbar {
-    margin-bottom: 25px;
+    margin-bottom: 18px;
     display: flex;
     justify-content: space-between;
     align-items: center;
     flex-wrap: wrap;
-    gap: 14px;
+    gap: 12px;
     background: white;
-    padding: 12px 18px;
-    border-radius: 14px;
+    padding: 10px 16px;
+    border-radius: 12px;
     border: 1px solid #e2e8f0;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
-}
-
-.ledger-search-box {
-    position: relative;
-    flex: 1;
-    min-width: 260px;
-    max-width: 460px;
-}
-
-.ledger-search-box i.fa-magnifying-glass {
-    position: absolute;
-    left: 14px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: #94a3b8;
-    font-size: 0.92rem;
-}
-
-.ledger-search-box input {
-    width: 100%;
-    padding: 10px 36px 10px 38px;
-    border-radius: 9px;
-    border: 1px solid #cbd5e1;
-    font-size: 0.9rem;
-    outline: none;
-    background: #f8fafc;
-    box-sizing: border-box;
-    transition: all 0.2s ease;
-}
-
-.ledger-search-box input:focus {
-    background: white;
-    border-color: #ff7675;
-    box-shadow: 0 0 0 3px rgba(255, 118, 117, 0.15);
-}
-
-.ledger-search-box button {
-    position: absolute;
-    right: 10px;
-    top: 50%;
-    transform: translateY(-50%);
-    background: transparent;
-    border: none;
-    color: #94a3b8;
-    cursor: pointer;
-    font-size: 0.85rem;
-    padding: 4px;
-}
-
-.ledger-search-box button:hover {
-    color: #ef4444;
-}
-
-.ledger-toolbar-actions {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
 }
 
 .sort-select-wrapper {
@@ -1034,7 +960,7 @@ td {
 }
 
 .sort-select-wrapper label {
-    font-size: 0.84rem;
+    font-size: 0.82rem;
     font-weight: 700;
     color: #64748b;
     display: flex;
@@ -1043,10 +969,10 @@ td {
 }
 
 .sort-select-wrapper select {
-    padding: 8px 12px;
+    padding: 7px 12px;
     border-radius: 8px;
     border: 1px solid #cbd5e1;
-    font-size: 0.86rem;
+    font-size: 0.84rem;
     font-weight: 600;
     color: #1e293b;
     background: white;
@@ -1059,111 +985,149 @@ td {
     border-color: #ff7675;
 }
 
-.folder-count-badge {
-    font-size: 0.82rem;
-    color: #475569;
-    font-weight: 700;
-    background: #f1f5f9;
-    padding: 7px 14px;
-    border-radius: 20px;
-    border: 1px solid #e2e8f0;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
+.ledger-search-box {
+    position: relative;
+    min-width: 250px;
+    max-width: 380px;
+    flex: 1;
 }
 
-/* 3. Modern Data-Rich Folder Cards */
+.ledger-search-box i.fa-magnifying-glass {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #94a3b8;
+    font-size: 0.88rem;
+}
+
+.ledger-search-box input {
+    width: 100%;
+    padding: 8px 32px 8px 34px;
+    border-radius: 8px;
+    border: 1px solid #cbd5e1;
+    font-size: 0.86rem;
+    outline: none;
+    background: #f8fafc;
+    box-sizing: border-box;
+    transition: all 0.2s ease;
+}
+
+.ledger-search-box input:focus {
+    background: white;
+    border-color: #ff7675;
+    box-shadow: 0 0 0 3px rgba(255, 118, 117, 0.12);
+}
+
+.ledger-search-box button {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    color: #94a3b8;
+    cursor: pointer;
+    font-size: 0.82rem;
+    padding: 4px;
+}
+
+.ledger-search-box button:hover {
+    color: #ef4444;
+}
+
+/* 3. Compact Modern Customer Folder Cards */
 .folder-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
-    gap: 32px 24px;
+    grid-template-columns: repeat(auto-fill, minmax(235px, 1fr));
+    gap: 20px 16px;
 }
 
 .customer-folder-card {
     position: relative;
     width: 100%;
-    min-height: 255px;
+    min-height: 180px;
     background: linear-gradient(135deg, #2c274d, #111021);
-    border-radius: 18px;
+    border-radius: 15px;
     cursor: pointer;
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s ease;
-    box-shadow: 0 12px 28px rgba(17, 16, 33, 0.22);
-    margin-top: 24px;
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.25s ease;
+    box-shadow: 0 8px 20px rgba(17, 16, 33, 0.18);
+    margin-top: 16px;
     border: 1px solid rgba(255, 255, 255, 0.08);
     display: flex;
     flex-direction: column;
 }
 
 .customer-folder-card:hover {
-    transform: translateY(-6px);
-    box-shadow: 0 20px 38px rgba(108, 92, 231, 0.32);
-    border-color: rgba(255, 118, 117, 0.5);
+    transform: translateY(-4px);
+    box-shadow: 0 14px 28px rgba(108, 92, 231, 0.26);
+    border-color: rgba(255, 118, 117, 0.45);
 }
 
 .customer-folder-tab-lip {
     position: absolute;
-    top: -15px;
+    top: -12px;
     left: 0;
-    min-width: 120px;
-    max-width: 180px;
-    height: 24px;
+    min-width: 90px;
+    max-width: 145px;
+    height: 18px;
     background: #17123f;
-    border-radius: 9px 9px 0 0;
+    border-radius: 7px 7px 0 0;
     z-index: 0;
     display: flex;
     align-items: center;
-    padding: 0 10px;
+    padding: 0 8px;
 }
 
 .folder-paper {
     position: absolute;
-    top: -10px;
+    top: -8px;
     left: 50%;
     transform: translateX(-50%);
     width: 88%;
-    height: 52px;
+    height: 40px;
     background: #ffffff;
-    border-radius: 10px 10px 0 0;
+    border-radius: 8px 8px 0 0;
     z-index: 1;
-    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-    padding: 8px 12px;
-    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    padding: 5px 10px;
+    box-shadow: 0 -3px 8px rgba(0, 0, 0, 0.06);
     box-sizing: border-box;
 }
 
 .customer-folder-card:hover .folder-paper {
-    top: -24px;
-    box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.14);
+    top: -16px;
+    box-shadow: 0 -5px 12px rgba(0, 0, 0, 0.12);
 }
 
 .folder-label-name {
     display: block;
     color: #0f172a;
     font-weight: 800;
-    font-size: 0.95rem;
+    font-size: 0.84rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 185px;
+    max-width: 145px;
     letter-spacing: -0.2px;
 }
 
 .folder-id-badge {
-    font-size: 0.68rem;
+    font-size: 0.62rem;
     font-weight: 800;
     color: #64748b;
     background: #f1f5f9;
-    padding: 2px 7px;
-    border-radius: 5px;
+    padding: 1px 5px;
+    border-radius: 4px;
     border: 1px solid #e2e8f0;
 }
 
 .paper-lines {
-    width: 45px;
-    height: 3px;
+    width: 32px;
+    height: 2px;
     background: #e2e8f0;
     border-radius: 2px;
-    margin-top: 4px;
+    margin-top: 3px;
 }
 
 .folder-content {
@@ -1173,87 +1137,87 @@ td {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    padding: 16px;
+    padding: 10px 12px;
     color: white;
-    margin-top: 36px;
-    gap: 12px;
+    margin-top: 22px;
+    gap: 7px;
 }
 
 .folder-balance-block {
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    padding: 10px 14px;
+    border-radius: 8px;
+    padding: 6px 10px;
     display: flex;
     justify-content: space-between;
     align-items: center;
 }
 
 .folder-balance-label {
-    font-size: 0.68rem;
+    font-size: 0.62rem;
     font-weight: 800;
     color: #cbd5e1;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.4px;
 }
 
 .folder-balance-amount {
-    font-size: 1.3rem;
+    font-size: 1.05rem;
     font-weight: 900;
-    letter-spacing: -0.3px;
+    letter-spacing: -0.2px;
 }
 
 .folder-utilization-box {
     display: flex;
     flex-direction: column;
-    gap: 5px;
+    gap: 3px;
 }
 
 .utilization-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-size: 0.74rem;
+    font-size: 0.68rem;
     color: #cbd5e1;
 }
 
 .utilization-track {
     width: 100%;
-    height: 6px;
+    height: 4px;
     background: rgba(255, 255, 255, 0.14);
-    border-radius: 10px;
+    border-radius: 6px;
     overflow: hidden;
 }
 
 .utilization-bar {
     height: 100%;
-    border-radius: 10px;
-    transition: width 0.4s ease;
+    border-radius: 6px;
+    transition: width 0.3s ease;
 }
 
 .utilization-footer {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-size: 0.72rem;
+    font-size: 0.66rem;
     color: #94a3b8;
 }
 
 .folder-details {
-    font-size: 0.78rem;
+    font-size: 0.72rem;
     display: flex;
     flex-direction: column;
-    gap: 5px;
+    gap: 3px;
     margin-bottom: 0;
 }
 
 .folder-details span {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     background: rgba(255, 255, 255, 0.08);
-    padding: 3px 8px;
-    border-radius: 6px;
+    padding: 2px 6px;
+    border-radius: 4px;
     width: fit-content;
     max-width: 100%;
     white-space: nowrap;
@@ -1263,8 +1227,8 @@ td {
 }
 
 .folder-details i {
-    width: 13px;
-    font-size: 0.78rem;
+    width: 11px;
+    font-size: 0.7rem;
     opacity: 0.9;
 }
 
@@ -1272,20 +1236,20 @@ td {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding-top: 8px;
+    padding-top: 4px;
     border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .folder-status-pill {
-    font-size: 0.68rem;
+    font-size: 0.62rem;
     font-weight: 800;
     text-transform: uppercase;
-    letter-spacing: 0.4px;
-    padding: 2px 8px;
-    border-radius: 12px;
+    letter-spacing: 0.3px;
+    padding: 1px 6px;
+    border-radius: 8px;
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 3px;
     white-space: nowrap;
 }
 
@@ -1320,27 +1284,27 @@ td {
 }
 
 .folder-open-cue {
-    font-size: 0.75rem;
+    font-size: 0.68rem;
     font-weight: 700;
     color: #ff7675;
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 5px;
     transition: all 0.2s ease;
     margin-left: auto;
 }
 
 .customer-folder-card:hover .folder-open-cue {
-    transform: translateX(4px);
+    transform: translateX(3px);
     color: #fab1a0;
 }
 
 .folder-restore-btn {
     background: #10b981;
     border: none;
-    padding: 6px 12px;
-    border-radius: 6px;
-    font-size: 0.75rem;
+    padding: 4px 8px;
+    border-radius: 5px;
+    font-size: 0.68rem;
     font-weight: bold;
     color: white;
     cursor: pointer;

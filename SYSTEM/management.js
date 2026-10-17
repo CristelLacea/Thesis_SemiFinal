@@ -1644,10 +1644,7 @@ async function renderCustomerFolders() {
                     grandReceivables += c.totalDebt;
                     if (c.totalDebt > 0) activeDebtorsCount++;
                     if (c.utilPct >= 80) highRiskCount++;
-                    totalCreditLine += c.credit_limit_num;
                 });
-
-                const storewideUtil = totalCreditLine > 0 ? (grandReceivables / totalCreditLine) * 100 : 0;
 
                 const kpiReceivablesEl = document.getElementById("kpiTotalReceivables");
                 if (kpiReceivablesEl) kpiReceivablesEl.innerText = `₱${grandReceivables.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -1660,12 +1657,6 @@ async function renderCustomerFolders() {
 
                 const kpiRiskEl = document.getElementById("kpiHighRiskDebtors");
                 if (kpiRiskEl) kpiRiskEl.innerText = `${highRiskCount} Account${highRiskCount === 1 ? '' : 's'}`;
-
-                const kpiCreditLimitEl = document.getElementById("kpiTotalCreditLimit");
-                if (kpiCreditLimitEl) kpiCreditLimitEl.innerText = `₱${totalCreditLine.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-                const kpiStoreUtil = document.getElementById("kpiStoreUtilization");
-                if (kpiStoreUtil) kpiStoreUtil.innerText = `${storewideUtil.toFixed(1)}% storewide credit utilized`;
             }
         }
 
@@ -1717,14 +1708,11 @@ function filterCustomerFolders(query = "") {
     filtered.sort((a, b) => {
         const debtA = a.totalDebt || 0;
         const debtB = b.totalDebt || 0;
-        const utilA = a.utilPct || 0;
-        const utilB = b.utilPct || 0;
         const nameA = a.fullname || "";
         const nameB = b.fullname || "";
 
         if (sortMode === "debt-desc") return debtB - debtA;
         if (sortMode === "debt-asc") return debtA - debtB;
-        if (sortMode === "util-desc") return utilB - utilA;
         if (sortMode === "name-asc") return nameA.localeCompare(nameB);
         if (sortMode === "name-desc") return nameB.localeCompare(nameA);
         if (sortMode === "recent") {
@@ -1734,18 +1722,6 @@ function filterCustomerFolders(query = "") {
         }
         return debtB - debtA;
     });
-
-    // Update folder count badge
-    const countBadge = document.getElementById("folderCountBadge");
-    if (countBadge) {
-        const total = (cachedCustomerFolders || []).length;
-        const filteredTotalDebt = filtered.reduce((sum, c) => sum + (c.totalDebt || 0), 0);
-        if (cleanQuery) {
-            countBadge.innerHTML = `<i class="fa-solid fa-filter"></i> Showing ${filtered.length} of ${total} • <strong style="color: #ff7675;">₱${filteredTotalDebt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>`;
-        } else {
-            countBadge.innerHTML = `<i class="fa-solid fa-folder-tree"></i> ${total} ${isArchived ? "Archived" : "Active"} Folder${total === 1 ? '' : 's'} • <strong style="color: #ff7675;">₱${filteredTotalDebt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>`;
-        }
-    }
 
     if (filtered.length === 0) {
         const emptyMsg = cleanQuery 
