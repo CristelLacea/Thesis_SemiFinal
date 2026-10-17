@@ -1607,17 +1607,7 @@ td {
     letter-spacing: -0.5px;
 }
 
-.terminal-profit-chip {
-    margin-top: 6px;
-    font-size: 0.78rem;
-    font-weight: 700;
-    color: #065f46;
-    background: #d1fae5;
-    padding: 3px 8px;
-    border-radius: 6px;
-    width: fit-content;
-    border: 1px solid #a7f3d0;
-}
+
 
 /* Credit meter box inside terminal */
 .terminal-credit-meter-box {

@@ -2102,20 +2102,6 @@ async function renderSpecificLedger(customerName) {
             
             const oldLabel = document.getElementById('ledgerAccruedProfitLabel');
             if (oldLabel) oldLabel.remove();
-            
-            let remainingProfitOwed = 0;
-            if (totalAmountBorrowed > 0 && effectiveDebt > 0) {
-                const globalProfitMargin = totalProfitBorrowed / totalAmountBorrowed;
-                remainingProfitOwed = effectiveDebt * globalProfitMargin;
-            }
-
-            if (effectiveDebt > 0) {
-                totalContainer.insertAdjacentHTML('afterend', `
-                    <div id="ledgerAccruedProfitLabel" class="terminal-profit-chip">
-                        <i class="fa-solid fa-chart-line"></i> Store Profit Accrued: <strong>₱${remainingProfitOwed.toFixed(2)}</strong>
-                    </div>
-                `);
-            }
         }
 
         // Update Credit Limit & Available Credit
