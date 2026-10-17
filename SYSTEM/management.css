@@ -1316,6 +1316,468 @@ td {
     background: #059669;
 }
 
+/* ==========================================================================
+   CUSTOMER DOSSIER & INTERIOR LEDGER TERMINAL (INSIDE FOLDER)
+   ========================================================================== */
+
+.specific-dossier-view {
+    background: transparent;
+    padding: 0;
+    margin-top: 10px;
+}
+
+/* Dossier Header Bar */
+.dossier-header-bar {
+    background: white;
+    padding: 16px 20px;
+    border-radius: 16px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.02);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.dossier-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.dossier-back-btn {
+    background: #f8fafc;
+    color: #475569;
+    border: 1px solid #cbd5e1;
+    padding: 8px 14px;
+    border-radius: 10px;
+    font-size: 0.84rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+}
+
+.dossier-back-btn:hover {
+    background: #1e293b;
+    color: white;
+    border-color: #1e293b;
+    transform: translateX(-3px);
+}
+
+.dossier-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #2c274d, #111021);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.15rem;
+    font-weight: 900;
+    letter-spacing: 0.5px;
+    box-shadow: 0 6px 14px rgba(17, 16, 33, 0.2);
+    flex-shrink: 0;
+}
+
+.dossier-identity {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.dossier-name-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.dossier-name {
+    margin: 0;
+    color: #0f172a;
+    font-weight: 800;
+    font-size: 1.35rem;
+    letter-spacing: -0.3px;
+}
+
+.dossier-meta-chips {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.dossier-meta-chip {
+    font-size: 0.78rem;
+    color: #64748b;
+    background: #f8fafc;
+    padding: 3px 9px;
+    border-radius: 6px;
+    border: 1px solid #e2e8f0;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+}
+
+.dossier-meta-chip i {
+    color: #94a3b8;
+    font-size: 0.75rem;
+}
+
+.dossier-add-credit-btn {
+    background: linear-gradient(135deg, #1d2b38, #0f172a);
+    color: white;
+    padding: 10px 18px;
+    border: none;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 0.88rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
+    transition: all 0.2s ease;
+}
+
+.dossier-add-credit-btn:hover {
+    background: linear-gradient(135deg, #ff7675, #e05655);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(255, 118, 117, 0.3);
+}
+
+/* Dossier Grid Layout */
+.dossier-grid {
+    display: flex;
+    gap: 24px;
+    align-items: flex-start;
+}
+
+@media (max-width: 1050px) {
+    .dossier-grid {
+        flex-direction: column;
+    }
+    .dossier-terminal-card {
+        width: 100% !important;
+        position: static !important;
+    }
+}
+
+/* Left: Statement Card */
+.dossier-statement-card {
+    flex: 1;
+    min-width: 0;
+    background: white;
+    border-radius: 16px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.02);
+    overflow: hidden;
+}
+
+.statement-header-bar {
+    padding: 16px 20px;
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.statement-title-box h4 {
+    margin: 0;
+    font-size: 0.96rem;
+    font-weight: 800;
+    color: #1e293b;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.statement-title-box span {
+    font-size: 0.74rem;
+    color: #64748b;
+    margin-top: 2px;
+    display: block;
+}
+
+.statement-badge {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #475569;
+    background: white;
+    border: 1px solid #cbd5e1;
+    padding: 4px 10px;
+    border-radius: 20px;
+}
+
+.statement-table-wrapper {
+    overflow-x: auto;
+}
+
+.dossier-statement-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+}
+
+.dossier-statement-table thead tr {
+    background: #ffffff;
+    border-bottom: 2px solid #e2e8f0;
+}
+
+.dossier-statement-table th {
+    padding: 12px 18px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.dossier-statement-table tbody tr {
+    transition: background 0.15s ease;
+}
+
+.dossier-statement-table tbody tr:hover {
+    background: #f8fafc;
+}
+
+.dossier-statement-table td {
+    padding: 14px 18px;
+}
+
+/* Right: Settlement Terminal Card */
+.dossier-terminal-card {
+    width: 360px;
+    background: white;
+    padding: 22px;
+    border-radius: 16px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.04);
+    position: sticky;
+    top: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.terminal-header-title {
+    font-size: 0.78rem;
+    font-weight: 800;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.terminal-balance-box {
+    background: linear-gradient(135deg, #fff1f2, #ffe4e6);
+    border: 1px solid #fecdd3;
+    padding: 14px 18px;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+}
+
+.terminal-balance-subtitle {
+    font-size: 0.68rem;
+    font-weight: 800;
+    color: #9f1239;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.terminal-total-amount {
+    font-size: 2.2rem;
+    font-weight: 900;
+    color: #be123c;
+    margin: 4px 0 0 0;
+    line-height: 1.1;
+    letter-spacing: -0.5px;
+}
+
+.terminal-profit-chip {
+    margin-top: 6px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #065f46;
+    background: #d1fae5;
+    padding: 3px 8px;
+    border-radius: 6px;
+    width: fit-content;
+    border: 1px solid #a7f3d0;
+}
+
+/* Credit meter box inside terminal */
+.terminal-credit-meter-box {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.terminal-meter-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.terminal-meter-label {
+    font-size: 0.68rem;
+    font-weight: 800;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    display: block;
+}
+
+.terminal-meter-val {
+    font-size: 1rem;
+    font-weight: 800;
+    color: #1e293b;
+}
+
+.terminal-edit-limit-btn {
+    background: #e2e8f0;
+    color: #334155;
+    border: none;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.74rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.2s;
+}
+
+.terminal-edit-limit-btn:hover {
+    background: #cbd5e1;
+    color: #0f172a;
+}
+
+.terminal-progress-track {
+    width: 100%;
+    height: 6px;
+    background: #e2e8f0;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.terminal-progress-fill {
+    height: 100%;
+    border-radius: 6px;
+    transition: width 0.3s ease, background 0.3s ease;
+}
+
+.terminal-divider {
+    height: 1px;
+    background: #f1f5f9;
+    margin: 2px 0;
+}
+
+/* Payment Input Terminal */
+.terminal-input-label {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #475569;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.terminal-quick-pay-btn {
+    background: #f0fdf4;
+    border: 1px dashed #86efac;
+    color: #166534;
+    padding: 7px 12px;
+    border-radius: 8px;
+    font-size: 0.78rem;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all 0.2s ease;
+}
+
+.terminal-quick-pay-btn:hover {
+    background: #dcfce7;
+    border-color: #22c55e;
+}
+
+.terminal-input-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.terminal-currency-symbol {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-weight: 800;
+    color: #64748b;
+    font-size: 1rem;
+}
+
+.terminal-input-wrapper input {
+    width: 100%;
+    padding: 10px 12px 10px 30px;
+    border-radius: 10px;
+    border: 1px solid #cbd5e1;
+    font-size: 1rem;
+    font-weight: 800;
+    color: #0f172a;
+    outline: none;
+    background: #ffffff;
+    box-sizing: border-box;
+    transition: all 0.2s;
+}
+
+.terminal-input-wrapper input:focus {
+    border-color: #10b981;
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+}
+
+.terminal-submit-pay-btn {
+    width: 100%;
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: white;
+    border: none;
+    padding: 12px;
+    border-radius: 10px;
+    font-weight: 800;
+    font-size: 0.95rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+    transition: all 0.2s ease;
+}
+
+.terminal-submit-pay-btn:hover {
+    background: linear-gradient(135deg, #059669, #047857);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(16, 185, 129, 0.35);
+}
+
+
 .section-header {
     display: flex;
     justify-content: space-between; /* This pushes the H2 to the left and Button to the right */

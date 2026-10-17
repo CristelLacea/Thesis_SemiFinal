@@ -1350,13 +1350,38 @@ function viewCustomerDetails(id, n) {
     if(tb) tb.style.display = 'none'; 
     const kpi = document.getElementById('ledgerKpiGrid');
     if(kpi) kpi.style.display = 'none';
-    document.getElementById('currentFolderName').innerText = `Folder: ${n}`; 
+    
+    // Hide folder tab action buttons (Active Debts, Archived Folders, Create Folder) when inside
+    const folderActionBtns = document.getElementById('utangFolderActionButtons');
+    if(folderActionBtns) folderActionBtns.style.display = 'none';
+    
+    // Show breadcrumb trail
+    const breadcrumb = document.getElementById('ledgerBreadcrumbTrail');
+    const breadcrumbName = document.getElementById('breadcrumbCustomerName');
+    if(breadcrumb && breadcrumbName) {
+        breadcrumbName.innerText = n;
+        breadcrumb.style.display = 'inline';
+    }
+
+    const currentTitle = document.getElementById('currentFolderName');
+    if(currentTitle) currentTitle.innerText = n; 
+
     document.getElementById('specificCustomerView').style.display = 'block'; 
     renderSpecificLedger(n); 
 }
+
 function backToFolders() { 
     activeFolderCustomerName = ''; 
     document.getElementById('specificCustomerView').style.display = 'none'; 
+    
+    // Restore outer folder action buttons
+    const folderActionBtns = document.getElementById('utangFolderActionButtons');
+    if(folderActionBtns) folderActionBtns.style.display = 'flex';
+    
+    // Hide breadcrumb trail
+    const breadcrumb = document.getElementById('ledgerBreadcrumbTrail');
+    if(breadcrumb) breadcrumb.style.display = 'none';
+
     const tb = document.getElementById('ledgerSearchToolbar'); 
     if(tb) tb.style.display = 'flex'; 
     const kpi = document.getElementById('ledgerKpiGrid');
@@ -1366,11 +1391,21 @@ function backToFolders() {
     document.getElementById('customerFolderList').style.display = 'grid'; 
     renderCustomerFolders(); 
 }
+
 function switchFolderTab(t) {
     currentFolderViewTab = t;
     activeFolderCustomerName = "";
     const specificView = document.getElementById("specificCustomerView");
     if (specificView) specificView.style.display = "none";
+    
+    // Restore outer folder action buttons
+    const folderActionBtns = document.getElementById('utangFolderActionButtons');
+    if(folderActionBtns) folderActionBtns.style.display = 'flex';
+    
+    // Hide breadcrumb trail
+    const breadcrumb = document.getElementById('ledgerBreadcrumbTrail');
+    if(breadcrumb) breadcrumb.style.display = 'none';
+
     const tb = document.getElementById("ledgerSearchToolbar");
     if (tb) tb.style.display = "flex";
     const kpi = document.getElementById("ledgerKpiGrid");
@@ -1380,6 +1415,18 @@ function switchFolderTab(t) {
     const gridContainer = document.getElementById("customerFolderList");
     if (gridContainer) gridContainer.style.display = "grid";
     renderCustomerFolders();
+}
+
+function fillFullPayment() {
+    const debtText = document.getElementById('customerDebtTotal')?.innerText.replace(/[₱,]/g, '').trim();
+    const currentDebt = parseFloat(debtText) || 0;
+    if (currentDebt > 0) {
+        const input = document.getElementById('ledgerPaymentInput');
+        if (input) {
+            input.value = currentDebt.toFixed(2);
+            input.focus();
+        }
+    }
 }
 
 let isLedgerPaymentProcessing = false;
@@ -1847,22 +1894,45 @@ async function renderSpecificLedger(customerName) {
     if (!tableBody) return;
 
     try {
-        // Fetch customer record to get customized credit limit
+        // 1. Fetch customer record to get credit limit and contact details
         let customerLimit = 2000.00;
+        let customerObj = null;
         try {
             const custEndpoint = (typeof currentFolderViewTab !== 'undefined' && currentFolderViewTab === 'ARCHIVED') 
                 ? '/api/get-archived-customers' 
                 : '/api/get-customers';
             const custRes = await fetch(`http://localhost:3000${custEndpoint}`);
             const custList = await custRes.json();
-            const match = custList.find(c => c.fullname.toLowerCase() === customerName.toLowerCase());
-            if (match && match.credit_limit !== undefined && match.credit_limit !== null) {
-                customerLimit = parseFloat(match.credit_limit);
+            customerObj = custList.find(c => (c.fullname || '').toLowerCase() === customerName.toLowerCase());
+            if (customerObj && customerObj.credit_limit !== undefined && customerObj.credit_limit !== null) {
+                customerLimit = parseFloat(customerObj.credit_limit);
             }
         } catch (e) {
-            console.warn("Could not fetch customer credit limit:", e);
+            console.warn("Could not fetch customer details:", e);
         }
 
+        // Populate Dossier Header Info
+        const nameTitleEl = document.getElementById('currentFolderName');
+        if (nameTitleEl) nameTitleEl.innerText = customerName;
+
+        const initials = customerName.split(' ')
+            .filter(Boolean)
+            .slice(0, 2)
+            .map(w => w[0].toUpperCase())
+            .join('') || 'C';
+        const avatarEl = document.getElementById('dossierAvatar');
+        if (avatarEl) avatarEl.innerText = initials;
+
+        if (customerObj) {
+            const phoneEl = document.getElementById('dossierPhone');
+            if (phoneEl) phoneEl.innerText = customerObj.contact_number || 'N/A';
+            const addrEl = document.getElementById('dossierAddress');
+            if (addrEl) addrEl.innerText = customerObj.address || 'N/A';
+            const idBadgeEl = document.getElementById('dossierIdBadge');
+            if (idBadgeEl) idBadgeEl.innerHTML = `<i class="fa-solid fa-hashtag"></i> ID #${customerObj.customer_id}`;
+        }
+
+        // Fetch Transactions List
         const res = await fetch(`http://localhost:3000/api/utang-list-by-name?name=${encodeURIComponent(customerName)}`);
         const transactionList = await res.json();
 
@@ -1870,8 +1940,15 @@ async function renderSpecificLedger(customerName) {
         let totalAmountBorrowed = 0;
         let totalProfitBorrowed = 0;
 
+        // Update Record Count Badge
+        const countBadge = document.getElementById('statementCountBadge');
+        if (countBadge) {
+            countBadge.innerText = `${(transactionList || []).length} Transaction${(transactionList || []).length === 1 ? '' : 's'}`;
+        }
+
         if (!transactionList || transactionList.length === 0) {
-            tableBody.innerHTML = '<tr><td colspan="3" style="padding: 20px; text-align: center; color: #94a3b8;">No entries.</td></tr>';
+            tableBody.innerHTML = '<tr><td colspan="3" style="padding: 40px; text-align: center; color: #94a3b8;"><i class="fa-solid fa-receipt" style="display:block; font-size:2rem; margin-bottom:10px; color:#cbd5e1;"></i> No credit transactions on file for this account.</td></tr>';
+            
             const totalContainer = document.getElementById('customerDebtTotal');
             if (totalContainer) {
                 totalContainer.innerText = "₱0.00";
@@ -1880,7 +1957,6 @@ async function renderSpecificLedger(customerName) {
             const oldLabel = document.getElementById('ledgerAccruedProfitLabel');
             if (oldLabel) oldLabel.remove();
 
-            // Update credit limit summary
             const creditLimitEl = document.getElementById('customerCreditLimit');
             const availableCreditEl = document.getElementById('customerAvailableCredit');
             const btnEditLimit = document.getElementById('btnEditCreditLimit');
@@ -1893,7 +1969,19 @@ async function renderSpecificLedger(customerName) {
                 availableCreditEl.style.color = "#10b981";
             }
             if (btnEditLimit) {
-                btnEditLimit.style.display = (typeof currentFolderViewTab !== 'undefined' && currentFolderViewTab === 'ARCHIVED') ? 'none' : 'inline-block';
+                btnEditLimit.style.display = (typeof currentFolderViewTab !== 'undefined' && currentFolderViewTab === 'ARCHIVED') ? 'none' : 'inline-flex';
+            }
+
+            const utilBar = document.getElementById('terminalUtilBar');
+            if (utilBar) {
+                utilBar.style.width = '0%';
+                utilBar.style.background = '#10b981';
+            }
+
+            const statusPill = document.getElementById('dossierStatusPill');
+            if (statusPill) {
+                statusPill.className = 'folder-status-pill pill-settled';
+                statusPill.innerHTML = '<i class="fa-solid fa-circle-check"></i> Settled (₱0)';
             }
 
             const trackingTerminal = document.getElementById('paymentInputTerminal');
@@ -1906,22 +1994,20 @@ async function renderSpecificLedger(customerName) {
         let payments = transactionList.filter(tx => tx.items_list.includes("Debt Payment")).reverse();
         let totalPastPayments = payments.reduce((sum, p) => sum + parseFloat(p.amount), 0);
 
-        // Pre-calculate which historical debt rows have already been cleared by cash pools
         debts.forEach(debt => {
             let amt = parseFloat(debt.amount);
             if (totalPastPayments >= amt) {
                 totalPastPayments -= amt;
-                debt.isRowFullyPaid = true; // Flag row as settled
+                debt.isRowFullyPaid = true;
             } else {
                 totalPastPayments = 0;
                 debt.isRowFullyPaid = false;
             }
         });
 
-        // Re-align array map indices back to standard newest-to-oldest layout tracking flow
         debts.reverse();
 
-        // --- STEP 2: RENDER LIVE BROWSING ROW ITEMS MATRIX ---
+        // --- STEP 2: RENDER STATEMENT ROWS ---
         tableBody.innerHTML = transactionList.map(tx => {
             const txAmt = parseFloat(tx.amount);
             const txProfit = parseFloat(tx.profit) || 0;
@@ -1935,50 +2021,71 @@ async function renderSpecificLedger(customerName) {
                 totalProfitBorrowed += txProfit;
             }
 
-            // Find matching item record inside reference list to extract computed settlement state flags
             const matchingDebtObj = !isPayment ? debts.find(d => d.utang_id === tx.utang_id) : null;
             const isRowSettled = matchingDebtObj ? matchingDebtObj.isRowFullyPaid : false;
 
-            // Apply fading style treatment to fully settled debt rows to prevent visual clutter
-            let rowStyle = isRowSettled ? 'opacity: 0.45; filter: grayscale(0.5); background-color: #f8fafc;' : '';
-            let descriptionText = "";
-            let amountStyle = "";
+            let rowStyle = isRowSettled ? 'opacity: 0.5; background-color: #fafbfc;' : '';
+            let descriptionHtml = "";
+            let amountHtml = "";
             
             if (isPayment) {
-                descriptionText = `<span style="background: #d1fae5; color: #065f46; padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: bold; margin-right: 8px;">🟢 PAYMENT RECEIVED</span> Cash collection payment`;
-                amountStyle = "color: #10b981; font-weight: 800; font-size:1.05rem;";
+                descriptionHtml = `
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; padding: 3px 8px; border-radius: 6px; font-size: 0.74rem; font-weight: 800; display: inline-flex; align-items: center; gap: 5px;">
+                            <i class="fa-solid fa-circle-check"></i> CASH PAYMENT
+                        </span>
+                        <span style="color: #475569; font-size: 0.88rem; font-weight: 500;">Cash collection payment received</span>
+                    </div>`;
+                amountHtml = `<strong style="color: #10b981; font-size: 1.05rem;">-₱${txAmt.toFixed(2)}</strong>`;
             } else {
                 try {
                     const parsedItems = JSON.parse(tx.items_list);
-                    descriptionText = parsedItems.map(i => `${i.name} <span style="color: #94a3b8; font-size: 0.85rem;">x${i.qty}</span>`).join(', ');
+                    descriptionHtml = parsedItems.map(i => `
+                        <span style="display: inline-flex; align-items: center; gap: 5px; background: #f8fafc; border: 1px solid #e2e8f0; padding: 2px 8px; border-radius: 5px; margin: 2px; font-size: 0.86rem; font-weight: 600; color: #1e293b;">
+                            ${i.name} <strong style="color: #64748b; font-size: 0.76rem; background: #e2e8f0; padding: 1px 5px; border-radius: 3px;">×${i.qty}</strong>
+                        </span>
+                    `).join('');
                 } catch(e) { 
-                    descriptionText = tx.items_list; 
+                    descriptionHtml = `<span style="color: #1e293b; font-weight: 600;">${tx.items_list}</span>`; 
                 }
                 
                 if (isRowSettled) {
-                    descriptionText = `<del style="color: #64748b;">${descriptionText} [FULLY PAID]</del>`;
-                    amountStyle = "color: #64748b; text-decoration: line-through;";
+                    descriptionHtml = `
+                        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                            <span style="text-decoration: line-through; color: #94a3b8;">${descriptionHtml}</span>
+                            <span style="background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; font-size: 0.68rem; font-weight: 800; padding: 2px 6px; border-radius: 4px;">
+                                <i class="fa-solid fa-check"></i> SETTLED
+                            </span>
+                        </div>`;
+                    amountHtml = `<span style="color: #94a3b8; text-decoration: line-through; font-weight: 700;">₱${txAmt.toFixed(2)}</span>`;
                 } else {
-                    amountStyle = "color: #e11d48; font-weight: 700;";
+                    amountHtml = `<strong style="color: #e11d48; font-size: 1.05rem;">₱${txAmt.toFixed(2)}</strong>`;
                 }
             }
 
+            const txDate = new Date(tx.date_borrowed);
+            const dateFormatted = txDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
             return `
                 <tr style="border-bottom: 1px solid #f1f5f9; ${rowStyle}">
-                    <td style="padding: 15px; color: #64748b; font-size: 0.9rem;">${new Date(tx.date_borrowed).toLocaleDateString()}</td>
-                    <td style="padding: 15px; font-size: 0.95rem;">${descriptionText}</td>
-                    <td style="padding: 15px; text-align: right; ${amountStyle}">${(isPayment && !isRowSettled) ? '-' : ''}₱${txAmt.toFixed(2)}</td>
+                    <td style="padding: 13px 18px; color: #64748b; font-size: 0.85rem; font-weight: 500; white-space: nowrap;">
+                        <i class="fa-regular fa-calendar" style="margin-right: 6px; color: #94a3b8;"></i> ${dateFormatted}
+                    </td>
+                    <td style="padding: 13px 18px;">${descriptionHtml}</td>
+                    <td style="padding: 13px 18px; text-align: right; white-space: nowrap;">${amountHtml}</td>
                 </tr>`;
         }).join('');
 
-        // --- STEP 3: UPDATE TERMINAL PANEL WRAPPERS & AVAILABLE CREDIT ---
+        // --- STEP 3: UPDATE TERMINAL & PROGRESS BAR ---
         const effectiveDebt = Math.max(0, totalOutstandingDebt);
         const availableCredit = Math.max(0, customerLimit - effectiveDebt);
+        const usedPct = customerLimit > 0 ? (effectiveDebt / customerLimit) * 100 : 0;
 
+        // Total Debt in Terminal
         const totalContainer = document.getElementById('customerDebtTotal');
         if (totalContainer) {
             totalContainer.innerText = `₱${effectiveDebt.toFixed(2)}`;
-            totalContainer.style.color = effectiveDebt > 0 ? "#ff7675" : "#10b981";
+            totalContainer.style.color = effectiveDebt > 0 ? "#be123c" : "#10b981";
             
             const oldLabel = document.getElementById('ledgerAccruedProfitLabel');
             if (oldLabel) oldLabel.remove();
@@ -1991,14 +2098,14 @@ async function renderSpecificLedger(customerName) {
 
             if (effectiveDebt > 0) {
                 totalContainer.insertAdjacentHTML('afterend', `
-                    <div id="ledgerAccruedProfitLabel" style="margin-top: -5px; margin-bottom: 15px; font-size: 0.85rem; color: #64748b; font-weight: 600;">
-                        Remaining Store Profit: <span style="color: #10b981; font-weight: 800;">₱${remainingProfitOwed.toFixed(2)}</span>
+                    <div id="ledgerAccruedProfitLabel" class="terminal-profit-chip">
+                        <i class="fa-solid fa-chart-line"></i> Store Profit Accrued: <strong>₱${remainingProfitOwed.toFixed(2)}</strong>
                     </div>
                 `);
             }
         }
 
-        // Update Credit Limit and Available Credit fields
+        // Update Credit Limit & Available Credit
         const creditLimitEl = document.getElementById('customerCreditLimit');
         const availableCreditEl = document.getElementById('customerAvailableCredit');
         const btnEditLimit = document.getElementById('btnEditCreditLimit');
@@ -2017,51 +2124,65 @@ async function renderSpecificLedger(customerName) {
             }
         }
         if (btnEditLimit) {
-            btnEditLimit.style.display = (typeof currentFolderViewTab !== 'undefined' && currentFolderViewTab === 'ARCHIVED') ? 'none' : 'inline-block';
+            btnEditLimit.style.display = (typeof currentFolderViewTab !== 'undefined' && currentFolderViewTab === 'ARCHIVED') ? 'none' : 'inline-flex';
         }
-        
-        // Dynamic visibility adjustments filtering based on folder view tab context profile rulesets
+
+        // Update Credit Utilization Progress Fill
+        const utilBar = document.getElementById('terminalUtilBar');
+        if (utilBar) {
+            utilBar.style.width = `${Math.min(100, Math.max(0, usedPct))}%`;
+            utilBar.style.background = usedPct >= 100 ? '#ef4444' : (usedPct >= 80 ? '#f59e0b' : '#10b981');
+        }
+
+        // Update Dossier Status Pill
+        const statusPill = document.getElementById('dossierStatusPill');
+        if (statusPill) {
+            if (typeof currentFolderViewTab !== 'undefined' && currentFolderViewTab === 'ARCHIVED') {
+                statusPill.className = 'folder-status-pill pill-archived';
+                statusPill.innerHTML = '<i class="fa-solid fa-box-archive"></i> Archived';
+            } else if (effectiveDebt === 0) {
+                statusPill.className = 'folder-status-pill pill-settled';
+                statusPill.innerHTML = '<i class="fa-solid fa-circle-check"></i> Settled (₱0)';
+            } else if (usedPct >= 100) {
+                statusPill.className = 'folder-status-pill pill-danger';
+                statusPill.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> Over Limit';
+            } else if (usedPct >= 80) {
+                statusPill.className = 'folder-status-pill pill-warning';
+                statusPill.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> Near Limit (${usedPct.toFixed(0)}%)`;
+            } else {
+                statusPill.className = 'folder-status-pill pill-good';
+                statusPill.innerHTML = '<i class="fa-solid fa-shield-halved"></i> Good Standing';
+            }
+        }
+
+        // Update Quick Pay Full Balance Button
+        const quickPayBtn = document.getElementById('btnQuickPayFull');
+        const quickPayDisplay = document.getElementById('quickPayAmountDisplay');
+        if (quickPayBtn) {
+            quickPayBtn.style.display = effectiveDebt > 0 ? 'flex' : 'none';
+            if (quickPayDisplay) {
+                quickPayDisplay.innerText = `₱${effectiveDebt.toFixed(2)}`;
+            }
+        }
+
+        // Payment Terminal State
         const trackingTerminal = document.getElementById('paymentInputTerminal');
         if (trackingTerminal) {
             if (typeof currentFolderViewTab !== 'undefined' && currentFolderViewTab === 'ARCHIVED') {
-                // Force a clean read-only state for archived items
                 trackingTerminal.innerHTML = `
                     <div style="background: #ecfdf5; border: 1px solid #a7f3d0; padding: 15px; border-radius: 12px; text-align: center; color: #065f46; font-weight: 700; font-size: 0.95rem; margin-top: 10px; width: 100%;">
                         <i class="fa-solid fa-circle-check"></i> The Debt is Fully Paid
                     </div>`;
                 trackingTerminal.style.display = 'block';
-            } else {
-                // REBUILD: Restore the active interactive payment terminal fields if browsing an active customer tab
+            } else if (effectiveDebt <= 0) {
                 trackingTerminal.innerHTML = `
-                    <div style="width: 100%; display: flex; flex-direction: column; gap: 10px;">
-                        <label style="font-size: 0.85rem; color: #475569; font-weight: 600;">Input Received Cash Payment:</label>
-                        <div style="position: relative; display: flex; align-items: center;">
-                            <span style="position: absolute; left: 12px; color: #64748b; font-weight: bold;">₱</span>
-                            <input type="number" id="ledgerPaymentInput" placeholder="0.00" min="0.01" step="0.01"
-                                   style="width: 100%; padding: 10px 12px 10px 28px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.95rem; font-weight: 600; color: #1e293b;">
-                        </div>
-                        <button type="button" onclick="submitLedgerPayment()" class="proceed-payment-btn"
-                                style="width: 100%; background: #10b981; color: white; border: none; padding: 12px; border-radius: 8px; font-weight: 700; font-size: 0.95rem; cursor: pointer; transition: background 0.2s;">
-                            Proceed Payment
-                        </button>
+                    <div style="background: #ecfdf5; border: 1px solid #a7f3d0; padding: 15px; border-radius: 12px; text-align: center; color: #065f46; font-weight: 700; font-size: 0.92rem; width: 100%;">
+                        <i class="fa-solid fa-circle-check"></i> Account is in Good Standing (No Debt)
                     </div>`;
-                
-                // Show or hide the terminal wrapper based on whether there is actually money left to collect
-                trackingTerminal.style.display = effectiveDebt <= 0 ? 'none' : 'flex';
-            }
-        }
-
-        const specificViewPanel = document.getElementById('specificCustomerView');
-        if (specificViewPanel) {
-            const addUtangBtn = Array.from(specificViewPanel.getElementsByTagName('button'))
-                .find(btn => btn.innerText.includes('Add Item on Credit'));
-
-            if (addUtangBtn) {
-                if (typeof currentFolderViewTab !== 'undefined' && currentFolderViewTab === 'ARCHIVED') {
-                    addUtangBtn.style.display = 'none';
-                } else {
-                    addUtangBtn.style.display = 'block';
-                }
+                trackingTerminal.style.display = 'block';
+            } else {
+                // Ensure inputs & buttons are active
+                trackingTerminal.style.display = 'flex';
             }
         }
 

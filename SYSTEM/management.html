@@ -44,8 +44,7 @@
         </nav>
 
         <main class="main-content">
-            <header class="top-header">
-                <h2>Management Panel</h2>
+            <header class="top-header" style="justify-content: flex-end; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid #f1f5f9;">
                 <div class="header-actions">
                     <span id="currentTime"></span>
                 </div>
@@ -304,9 +303,12 @@
 
             <!-- Locate your utang-section -->
 <div id="utang-section" class="content-section" style="display:none;">
-    <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; border-bottom: 1px solid #f1f5f9; padding-bottom: 15px;">
-        <h2>Listahan ng Utang (Credit Ledger)</h2>
-        <div style="display: flex; gap: 10px;">
+    <div class="section-header" id="utangSectionHeader" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; border-bottom: 1px solid #f1f5f9; padding-bottom: 15px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <h2 style="margin: 0;">Listahan ng Utang (Credit Ledger)</h2>
+            <span id="ledgerBreadcrumbTrail" style="display: none; color: #64748b; font-size: 1.15rem; font-weight: 600;">› <span id="breadcrumbCustomerName" style="color: #ff7675;"></span></span>
+        </div>
+        <div id="utangFolderActionButtons" style="display: flex; gap: 10px;">
             <button class="toggle-btn active" id="btnViewActiveFolders" onclick="switchFolderTab('ACTIVE')" style="padding: 10px 15px; font-weight: bold; border: 1px solid #cbd5e1; border-radius: 8px; cursor: pointer;">Active Debts</button>
             <button class="toggle-btn" id="btnViewArchivedFolders" onclick="switchFolderTab('ARCHIVED')" style="padding: 10px 15px; font-weight: bold; border: 1px solid #cbd5e1; border-radius: 8px; cursor: pointer;">Archived Folders</button>
             <button class="add-note-btn" onclick="openFolderModal()" style="margin: 0; background: #ff7675; color: white; padding: 12px 20px; border: none; border-radius: 10px; font-weight: 600; cursor: pointer;">+ Create New Ledger Folder</button>
@@ -362,62 +364,111 @@
 
     <div class="folder-grid" id="customerFolderList"></div> 
     
-    <div id="specificCustomerView" style="display:none; background: #f8fafc; padding: 25px; border-radius: 15px; border: 1px solid #e2e8f0;">
-        <button onclick="backToFolders()" class="back-folders-btn"><i class="fa-solid fa-arrow-left"></i> Back to Folders</button>
-        
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-            <h3 id="currentFolderName" style="margin: 0; color: #1d2b38; font-weight: 800; font-size: 1.4rem;"></h3>
-            <button class="add-note-btn" onclick="openUtangModal()" style="background: #1d2b38; color: white; padding: 10px 20px; border: none; border-radius: 10px; font-weight: bold; cursor: pointer;">+ Add Item on Credit</button>
+    <div id="specificCustomerView" class="specific-dossier-view" style="display:none;">
+        <!-- Top Customer Dossier Header Bar -->
+        <div class="dossier-header-bar">
+            <div class="dossier-left">
+                <button onclick="backToFolders()" class="dossier-back-btn" title="Return to All Folders">
+                    <i class="fa-solid fa-arrow-left"></i> <span>Back to Folders</span>
+                </button>
+                <div class="dossier-avatar" id="dossierAvatar">CL</div>
+                <div class="dossier-identity">
+                    <div class="dossier-name-row">
+                        <h3 id="currentFolderName" class="dossier-name">Customer Name</h3>
+                        <span class="folder-status-pill pill-good" id="dossierStatusPill"><i class="fa-solid fa-shield-halved"></i> Good Standing</span>
+                    </div>
+                    <div class="dossier-meta-chips">
+                        <span class="dossier-meta-chip" id="dossierIdBadge"><i class="fa-solid fa-hashtag"></i> ID #0</span>
+                        <span class="dossier-meta-chip"><i class="fa-solid fa-phone"></i> <span id="dossierPhone">N/A</span></span>
+                        <span class="dossier-meta-chip"><i class="fa-solid fa-location-dot"></i> <span id="dossierAddress">N/A</span></span>
+                    </div>
+                </div>
+            </div>
+            <div class="dossier-right">
+                <button class="dossier-add-credit-btn" onclick="openUtangModal()">
+                    <i class="fa-solid fa-cart-plus"></i> + Add Item on Credit
+                </button>
+            </div>
         </div>
 
-        <div class="ledger-view-wrapper" style="display: flex; gap: 30px; align-items: flex-start; margin-top: 20px;">
+        <!-- Main Dossier Content Grid: Ledger Statement Sheet (Left) + Terminal (Right) -->
+        <div class="dossier-grid">
             
-            <div class="tickets-container" style="flex: 2; background: white; border-radius: 15px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
-                <table style="width: 100%; border-collapse: collapse; text-align: left;">
-                    <thead>
-                        <tr style="background: #f8fafc; border-bottom: 2px solid #edf2f7; color: #64748b; font-size: 0.85rem; text-transform: uppercase;">
-                            <th style="padding: 15px;">Transaction Date</th>
-                            <th style="padding: 15px;">Description / Items Taken</th>
-                            <th style="padding: 15px; text-align: right;">Amount</th>
-                        </tr>
-                    </thead>
-                    <tbody id="specificUtangTableBody">
+            <!-- Left: Transaction History Statement Card -->
+            <div class="dossier-statement-card">
+                <div class="statement-header-bar">
+                    <div class="statement-title-box">
+                        <h4><i class="fa-solid fa-receipt"></i> Transaction Statement</h4>
+                        <span>Chronological log of items borrowed and cash payments recorded</span>
+                    </div>
+                    <span class="statement-badge" id="statementCountBadge">0 Transactions</span>
+                </div>
+                <div class="statement-table-wrapper">
+                    <table class="dossier-statement-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 25%;"><i class="fa-regular fa-calendar"></i> Date</th>
+                                <th style="width: 53%;"><i class="fa-solid fa-basket-shopping"></i> Description / Items Taken</th>
+                                <th style="width: 22%; text-align: right;"><i class="fa-solid fa-coins"></i> Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody id="specificUtangTableBody">
                         </tbody>
-                </table>
+                    </table>
+                </div>
             </div>
 
-            <div class="debt-summary-panel" style="width: 380px; background: white; padding: 25px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border-top: 6px solid #ff7675; position: sticky; top: 20px;">
-                <h4 style="text-transform: uppercase; font-size: 0.8rem; color: #64748b; letter-spacing: 0.5px;"><i class="fa-solid fa-calculator"></i> Total Debt</h4>
-                <p id="customerDebtTotal" style="font-size: 3rem; font-weight: 900; color: #ff7675; margin: 15px 0;">₱0.00</p>
-                
-                <div style="background: #f8fafc; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 15px; display: flex; flex-direction: column; gap: 10px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
+            <!-- Right: Account Balance & Settlement Terminal -->
+            <div class="dossier-terminal-card">
+                <div class="terminal-header-title">
+                    <i class="fa-solid fa-wallet"></i> Account Balance Summary
+                </div>
+
+                <!-- Outstanding Debt Display -->
+                <div class="terminal-balance-box">
+                    <span class="terminal-balance-subtitle">OUTSTANDING BALANCE</span>
+                    <p id="customerDebtTotal" class="terminal-total-amount">₱0.00</p>
+                </div>
+
+                <!-- Credit Limit & Progress Meter -->
+                <div class="terminal-credit-meter-box">
+                    <div class="terminal-meter-row">
                         <div>
-                            <span style="font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; display: block; letter-spacing: 0.5px;">Credit Limit</span>
-                            <span id="customerCreditLimit" style="font-size: 1.1rem; font-weight: 800; color: #1e293b;">₱2,000.00</span>
+                            <span class="terminal-meter-label">CREDIT LIMIT</span>
+                            <span id="customerCreditLimit" class="terminal-meter-val">₱2,000.00</span>
                         </div>
-                        <button id="btnEditCreditLimit" onclick="editCreditLimit()" style="display: none; background: #e2e8f0; color: #475569; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.75rem; transition: all 0.2s;">Edit</button>
+                        <button id="btnEditCreditLimit" onclick="editCreditLimit()" class="terminal-edit-limit-btn" title="Adjust customer credit limit">
+                            <i class="fa-solid fa-pen-to-square"></i> Edit
+                        </button>
                     </div>
-                    <div style="border-top: 1px dashed #cbd5e1; padding-top: 8px; display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                            <span style="font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; display: block; letter-spacing: 0.5px;">Available Credit</span>
-                            <span id="customerAvailableCredit" style="font-size: 1.1rem; font-weight: 800; color: #10b981;">₱2,000.00</span>
-                        </div>
+                    <div class="terminal-progress-track">
+                        <div id="terminalUtilBar" class="terminal-progress-fill" style="width: 0%;"></div>
+                    </div>
+                    <div class="terminal-meter-row" style="margin-top: 6px;">
+                        <span style="color: #64748b; font-size: 0.76rem;">Available Credit:</span>
+                        <strong id="customerAvailableCredit" style="color: #10b981; font-size: 0.95rem;">₱2,000.00</strong>
                     </div>
                 </div>
 
-                <hr style="border: 0; border-top: 1px solid #f1f5f9; margin: 20px 0;">
+                <div class="terminal-divider"></div>
                 
-                <div class="payment-collection-terminal" id="paymentInputTerminal" style="display: flex; flex-direction: column; gap: 12px;">
-                    <label style="font-weight: 700; color: #475569; font-size: 0.9rem;">Input Received Cash Payment:</label>
-                    <div style="position: relative; width: 100%;">
-                        <span style="position: absolute; left: 15px; top: 50%; transform: translateY(-50%); font-weight: bold; color: #64748b;">₱</span>
-                        <input type="number" id="ledgerPaymentInput" placeholder="0.00" step="0.01" min="0.01"
-                               style="width: 100%; padding: 12px 12px 12px 30px; border-radius: 10px; border: 1px solid #cbd5e1; font-size: 1.1rem; font-weight: bold; outline: none;">
+                <!-- Cash Payment Terminal -->
+                <div class="payment-collection-terminal" id="paymentInputTerminal">
+                    <span class="terminal-input-label"><i class="fa-solid fa-hand-holding-dollar"></i> Record Cash Payment:</span>
+                    
+                    <!-- Quick Full Payment Auto-Fill Button -->
+                    <button type="button" id="btnQuickPayFull" onclick="fillFullPayment()" class="terminal-quick-pay-btn" title="One-click full balance payoff">
+                        <span><i class="fa-solid fa-bolt"></i> Pay Full Balance:</span>
+                        <strong id="quickPayAmountDisplay">₱0.00</strong>
+                    </button>
+
+                    <div class="terminal-input-wrapper">
+                        <span class="terminal-currency-symbol">₱</span>
+                        <input type="number" id="ledgerPaymentInput" placeholder="0.00" step="0.01" min="0.01" autocomplete="off">
                     </div>
-                    <button class="full-pay-btn" onclick="submitLedgerPayment()" 
-                            style="width: 100%; background: #10b981; color: white; border: none; padding: 14px; border-radius: 10px; font-weight: 800; font-size: 1rem; cursor: pointer; transition: 0.2s;">
-                        Proceed Payment
+                    
+                    <button class="terminal-submit-pay-btn" onclick="submitLedgerPayment()">
+                        <i class="fa-solid fa-circle-check"></i> Proceed Payment
                     </button>
                 </div>
             </div>
@@ -425,7 +476,6 @@
         </div>
     </div>
 </div>
- 
 
     <div id="productModal" class="modal">
         <div class="modal-content">
