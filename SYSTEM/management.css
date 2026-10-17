@@ -2605,4 +2605,14 @@ td {
     h1, h2, h3, p, span, strong, td, th {
         color: #000000 !important;
     }
+
+    /* Ensure all category items are visible when printing */
+    tr[class*="report-cat-item-"] {
+        display: table-row !important;
+    }
 }
+
+.report-cat-header-row:hover {
+    background-color: #e2e8f0 !important;
+}
+

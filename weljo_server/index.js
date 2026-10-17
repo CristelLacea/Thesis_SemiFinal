@@ -322,6 +322,14 @@ app.get('/api/get-archived-customers', (req, res) => {
     });
 });
 
+// Fetch all customer folders (both active and archived)
+app.get('/api/customer-folders', (req, res) => {
+    db.query("SELECT * FROM utang_customers ORDER BY fullname ASC", (err, results) => {
+        if (err) return res.status(500).json(err);
+        res.json(results ? results.rows : []);
+    });
+});
+
 // Explicit endpoint to toggle status back to active if restoration is requested
 app.put('/api/restore-customer-folder/:id', (req, res) => {
     const customerId = req.params.id;

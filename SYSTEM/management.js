@@ -110,11 +110,15 @@ function showSection(id) {
         if (startInput && !startInput.value) {
             startInput.value = today.toLocaleDateString('sv-SE');
         }
-        populateReportCustomerDropdown();
+        const catWrapper = document.getElementById('reportCategorySelectWrapper');
         const custWrapper = document.getElementById('reportCustomerSelectWrapper');
+        if (catWrapper) {
+            catWrapper.style.display = currentReportType === 'cash' ? 'flex' : 'none';
+        }
         if (custWrapper) {
             custWrapper.style.display = currentReportType === 'collections' ? 'flex' : 'none';
         }
+        populateReportCustomerDropdown();
         generateReportEngine();
     }
 }
@@ -2875,22 +2879,79 @@ function setReportPeriod(period) {
 // Global State for Reports Type Selector
 let currentReportType = 'cash';
 
+function populateReportCategoryDropdown(categories) {
+    const select = document.getElementById('reportCategoryFilter');
+    if (!select) return;
+    const currentVal = select.value || 'ALL';
+
+    let html = '<option value="ALL">All Categories</option>';
+    const sortedCats = Array.from(categories).sort((a, b) => a.localeCompare(b));
+    sortedCats.forEach(cat => {
+        html += `<option value="${cat}">${cat}</option>`;
+    });
+    select.innerHTML = html;
+    if (currentVal && Array.from(select.options).some(o => o.value === currentVal)) {
+        select.value = currentVal;
+    }
+}
+
 async function populateReportCustomerDropdown() {
     const select = document.getElementById('reportCustomerFilter');
     if (!select) return;
     const currentVal = select.value || 'ALL';
 
     try {
-        const res = await fetch('http://localhost:3000/api/customer-folders');
-        const folders = await res.json();
-        
+        let customerNames = new Set();
+
+        // 1. Fetch from active customers
+        try {
+            const activeRes = await fetch('http://localhost:3000/api/get-customers');
+            if (activeRes.ok) {
+                const activeList = await activeRes.json();
+                if (Array.isArray(activeList)) {
+                    activeList.forEach(c => { if (c.fullname) customerNames.add(c.fullname.trim()); });
+                }
+            }
+        } catch(e) {}
+
+        // 2. Fetch from archived customers
+        try {
+            const archRes = await fetch('http://localhost:3000/api/get-archived-customers');
+            if (archRes.ok) {
+                const archList = await archRes.json();
+                if (Array.isArray(archList)) {
+                    archList.forEach(c => { if (c.fullname) customerNames.add(c.fullname.trim()); });
+                }
+            }
+        } catch(e) {}
+
+        // 3. Fallback to customer-folders if available
+        try {
+            const folderRes = await fetch('http://localhost:3000/api/customer-folders');
+            if (folderRes.ok) {
+                const folderList = await folderRes.json();
+                if (Array.isArray(folderList)) {
+                    folderList.forEach(c => { if (c.fullname) customerNames.add(c.fullname.trim()); });
+                }
+            }
+        } catch(e) {}
+
+        // 4. Also pull from utang transactions so any existing borrower is available
+        try {
+            const utangRes = await fetch('http://localhost:3000/api/get-all-utang');
+            if (utangRes.ok) {
+                const utangList = await utangRes.json();
+                if (Array.isArray(utangList)) {
+                    utangList.forEach(u => { if (u.customer_name) customerNames.add(u.customer_name.trim()); });
+                }
+            }
+        } catch(e) {}
+
         let html = '<option value="ALL">All Creditors (Storewide)</option>';
-        if (Array.isArray(folders)) {
-            const sorted = folders.sort((a, b) => (a.fullname || '').localeCompare(b.fullname || ''));
-            sorted.forEach(c => {
-                html += `<option value="${c.fullname}">${c.fullname}</option>`;
-            });
-        }
+        const sorted = Array.from(customerNames).sort((a, b) => a.localeCompare(b));
+        sorted.forEach(name => {
+            html += `<option value="${name}">${name}</option>`;
+        });
         select.innerHTML = html;
         if (currentVal && Array.from(select.options).some(o => o.value === currentVal)) {
             select.value = currentVal;
@@ -2916,8 +2977,13 @@ function setReportType(type) {
         btnCollections.style.color = type === 'collections' ? 'white' : '#475569';
     }
 
-    // Toggle creditor selector visibility
+    // Toggle category vs creditor selector visibility
+    const catWrapper = document.getElementById('reportCategorySelectWrapper');
     const custWrapper = document.getElementById('reportCustomerSelectWrapper');
+
+    if (catWrapper) {
+        catWrapper.style.display = type === 'cash' ? 'flex' : 'none';
+    }
     if (custWrapper) {
         custWrapper.style.display = type === 'collections' ? 'flex' : 'none';
     }
@@ -2927,6 +2993,20 @@ function setReportType(type) {
     }
 
     generateReportEngine();
+}
+
+function toggleReportCategoryCollapse(catSafeId) {
+    const rows = document.querySelectorAll(`.report-cat-item-${catSafeId}`);
+    const chevron = document.getElementById(`cat-chevron-${catSafeId}`);
+    if (!rows || rows.length === 0) return;
+
+    const isHidden = rows[0].style.display === 'none';
+    rows.forEach(r => {
+        r.style.display = isHidden ? 'table-row' : 'none';
+    });
+    if (chevron) {
+        chevron.style.transform = isHidden ? 'rotate(0deg)' : 'rotate(-90deg)';
+    }
 }
 
 async function generateReportEngine() {
@@ -2968,17 +3048,16 @@ async function generateReportEngine() {
     tableBody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 30px; color: #64748b;"><i class="fa-solid fa-spinner fa-spin"></i> Generating report sheets...</td></tr>';
 
     try {
-        const [salesRes, prodRes] = await Promise.all([
-            fetch('http://localhost:3000/api/sales'),
-            fetch('http://localhost:3000/api/products')
-        ]);
-        const allSales = await salesRes.json();
-        const dbProducts = await prodRes.json();
-
-        // --- 1. DIRECT SALES (CASH) REPORT TYPE: ORGANIZED BY CATEGORY ---
+        // --- 1. DIRECT SALES (CASH) REPORT TYPE: ORGANIZED BY CATEGORY & TOGGLEABLE ---
         if (currentReportType === 'cash') {
+            const selectedCategory = document.getElementById('reportCategoryFilter')?.value || 'ALL';
+
             const docTitle = document.getElementById('reportDocumentTitle');
-            if (docTitle) docTitle.innerText = "Sales Performance Report";
+            if (docTitle) {
+                docTitle.innerText = selectedCategory === 'ALL' 
+                    ? "Sales Performance Report" 
+                    : `Sales Performance Report: ${selectedCategory}`;
+            }
 
             tableHeader.innerHTML = `
                 <th style="padding: 10px 8px; width: 42%;">ITEM NAME</th>
@@ -2995,7 +3074,20 @@ async function generateReportEngine() {
             document.getElementById('reportTotalProfit').style.color = "#10b981";
             document.getElementById('reportTotalMargin').style.color = "#f59e0b";
 
-            const filteredSales = allSales.filter(sale => {
+            const [salesRes, prodRes] = await Promise.all([
+                fetch('http://localhost:3000/api/sales'),
+                fetch('http://localhost:3000/api/products')
+            ]);
+            const allSales = (salesRes.ok ? await salesRes.json() : []) || [];
+            const dbProducts = (prodRes.ok ? await prodRes.json() : []) || [];
+
+            // Extract all categories in database to populate category dropdown
+            const categorySet = new Set();
+            dbProducts.forEach(p => {
+                if (p.prod_category) categorySet.add(p.prod_category.trim().toUpperCase());
+            });
+
+            const filteredSales = (Array.isArray(allSales) ? allSales : []).filter(sale => {
                 const saleDate = new Date(sale.sale_date);
                 return saleDate >= startDate && saleDate <= endDate;
             }).sort((a, b) => new Date(a.sale_date) - new Date(b.sale_date));
@@ -3021,9 +3113,9 @@ async function generateReportEngine() {
                     const prodMatch = dbProducts.find(p => p.prod_name === name);
                     const rawCat = (prodMatch?.prod_category || 'General').trim();
                     const catKey = rawCat ? rawCat.toUpperCase() : 'GENERAL';
+                    categorySet.add(catKey);
 
                     if (!categoryMap[catKey]) {
-                        // Find theme icon
                         const theme = categoryThemeRegistry[catKey] || { icon: "fa-solid fa-boxes-stacked" };
                         categoryMap[catKey] = {
                             name: catKey,
@@ -3050,7 +3142,6 @@ async function generateReportEngine() {
                     if (!itemObj.priceTiers[tierKey]) {
                         itemObj.priceTiers[tierKey] = {
                             price: price,
-                            cost: cost,
                             qty: 0,
                             gross: 0,
                             profit: 0,
@@ -3058,40 +3149,52 @@ async function generateReportEngine() {
                         };
                     }
 
-                    itemObj.priceTiers[tierKey].qty += qty;
-                    itemObj.priceTiers[tierKey].gross += (price * qty);
-                    itemObj.priceTiers[tierKey].profit += ((price - cost) * qty);
+                    const tierObj = itemObj.priceTiers[tierKey];
+                    tierObj.qty += qty;
+                    tierObj.gross += (qty * price);
+                    tierObj.profit += (qty * (price - cost));
 
                     itemObj.qty += qty;
-                    itemObj.gross += (price * qty);
-                    itemObj.profit += ((price - cost) * qty);
+                    itemObj.gross += (qty * price);
+                    itemObj.profit += (qty * (price - cost));
 
                     catObj.totalQty += qty;
-                    catObj.totalGross += (price * qty);
-                    catObj.totalProfit += ((price - cost) * qty);
+                    catObj.totalGross += (qty * price);
+                    catObj.totalProfit += (qty * (price - cost));
                 });
             });
+
+            // Populate category filter dropdown
+            populateReportCategoryDropdown(categorySet);
+
+            // Filter categories to render based on user selection
+            let categoriesToRender = Object.values(categoryMap);
+            if (selectedCategory !== 'ALL') {
+                categoriesToRender = categoriesToRender.filter(c => c.name === selectedCategory);
+            }
+            categoriesToRender.sort((a, b) => a.name.localeCompare(b.name));
 
             let tableHtml = '';
             let grandTotalQty = 0;
             let grandTotalGross = 0;
             let grandTotalProfit = 0;
 
-            const sortedCategories = Object.keys(categoryMap).sort();
-
-            sortedCategories.forEach(catKey => {
-                const cat = categoryMap[catKey];
+            categoriesToRender.forEach(cat => {
                 grandTotalQty += cat.totalQty;
                 grandTotalGross += cat.totalGross;
                 grandTotalProfit += cat.totalProfit;
 
-                // Category Header Banner
+                const catSafeId = cat.name.replace(/[^a-zA-Z0-9]/g, '_');
+
+                // Category Section Header Row with click-to-toggle
                 tableHtml += `
-                    <tr style="background: #f1f5f9; border-top: 2px solid #cbd5e1; border-bottom: 2px solid #cbd5e1; page-break-after: avoid;">
+                    <tr class="report-cat-header-row" onclick="toggleReportCategoryCollapse('${catSafeId}')" style="background: #f1f5f9; border-top: 2px solid #cbd5e1; border-bottom: 2px solid #cbd5e1; page-break-after: avoid; cursor: pointer; user-select: none;" title="Click to collapse / expand items">
                         <td colspan="5" style="padding: 10px 12px;">
                             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
-                                <span style="font-weight: 800; color: #0f172a; font-size: 0.92rem; text-transform: uppercase; letter-spacing: 0.5px;">
-                                    <i class="${cat.icon}" style="color: #64748b; margin-right: 6px;"></i> ${cat.name}
+                                <span style="font-weight: 800; color: #0f172a; font-size: 0.92rem; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px;">
+                                    <i id="cat-chevron-${catSafeId}" class="fa-solid fa-chevron-down" style="color: #64748b; font-size: 0.75rem; transition: transform 0.2s;"></i>
+                                    <i class="${cat.icon}" style="color: #64748b;"></i> ${cat.name}
+                                    <span class="no-print" style="font-size: 0.72rem; color: #94a3b8; font-weight: 600;">(Click to toggle)</span>
                                 </span>
                                 <span style="font-size: 0.8rem; color: #475569; font-weight: 700;">
                                     Subtotal: ${cat.totalQty} items &nbsp;•&nbsp; Sales: <strong style="color: #0f172a;">₱${cat.totalGross.toFixed(2)}</strong> &nbsp;•&nbsp; Profit: <strong style="color: #10b981;">₱${cat.totalProfit.toFixed(2)}</strong>
@@ -3115,8 +3218,8 @@ async function generateReportEngine() {
                     if (tiers.length <= 1) {
                         const singleTier = tiers[0] || { price: 0 };
                         tableHtml += `
-                            <tr style="border-bottom: 1px solid #f1f5f9;">
-                                <td style="padding: 9px 8px 9px 24px; color: #1e293b; font-weight: 600;">
+                            <tr class="report-cat-item-${catSafeId}" style="border-bottom: 1px solid #f1f5f9;">
+                                <td style="padding: 9px 8px 9px 28px; color: #1e293b; font-weight: 600;">
                                     <span style="color: #94a3b8; margin-right: 6px;">•</span> ${name}
                                 </td>
                                 <td style="padding: 9px 8px; text-align: center; color: #334155; font-weight: 700;">${data.qty} pcs</td>
@@ -3131,8 +3234,8 @@ async function generateReportEngine() {
                         const maxP = Math.max(...tiers.map(t => t.price));
 
                         tableHtml += `
-                            <tr style="border-bottom: 1px dashed #cbd5e1; background: #fafbfc;">
-                                <td style="padding: 9px 8px 9px 24px; font-weight: 700; color: #0f172a;">
+                            <tr class="report-cat-item-${catSafeId}" style="border-bottom: 1px dashed #cbd5e1; background: #fafbfc;">
+                                <td style="padding: 9px 8px 9px 28px; font-weight: 700; color: #0f172a;">
                                     <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                                         <span>• ${name}</span>
                                         <span style="display: inline-flex; align-items: center; gap: 4px; font-size: 0.68rem; font-weight: 700; background: #fef3c7; color: #b45309; padding: 1px 6px; border-radius: 4px; border: 1px solid #fde68a;">
@@ -3152,8 +3255,8 @@ async function generateReportEngine() {
                         tiers.forEach((tier, idx) => {
                             const isLastTier = idx === tiers.length - 1;
                             tableHtml += `
-                                <tr style="border-bottom: ${isLastTier ? '1px solid #f1f5f9' : '1px dashed #f8fafc'}; background: #f8fafc;">
-                                    <td style="padding: 5px 8px 5px 44px; color: #64748b; font-size: 0.8rem;">
+                                <tr class="report-cat-item-${catSafeId}" style="border-bottom: ${isLastTier ? '1px solid #f1f5f9' : '1px dashed #f8fafc'}; background: #f8fafc;">
+                                    <td style="padding: 5px 8px 5px 48px; color: #64748b; font-size: 0.8rem;">
                                         ↳ Sold @ <strong>₱${tier.price.toFixed(2)}</strong>
                                     </td>
                                     <td style="padding: 5px 8px; text-align: center; font-size: 0.8rem; color: #64748b;">${tier.qty} pcs</td>
@@ -3168,7 +3271,10 @@ async function generateReportEngine() {
             });
 
             if (tableHtml === '') {
-                tableHtml = `<tr><td colspan="5" style="text-align: center; padding: 40px; color: #94a3b8; font-style: italic;"><i class="fa-solid fa-receipt" style="display:block; font-size:1.8rem; margin-bottom:10px;"></i> No sales recorded for this period.</td></tr>`;
+                const emptyMsg = selectedCategory !== 'ALL'
+                    ? `No sales recorded for "${selectedCategory}" within this period.`
+                    : "No sales recorded for this period.";
+                tableHtml = `<tr><td colspan="5" style="text-align: center; padding: 40px; color: #94a3b8; font-style: italic;"><i class="fa-solid fa-receipt" style="display:block; font-size:1.8rem; margin-bottom:10px;"></i> ${emptyMsg}</td></tr>`;
             }
             tableBody.innerHTML = tableHtml;
 
@@ -3191,99 +3297,7 @@ async function generateReportEngine() {
                     : "Cash Collections Report";
             }
 
-            // Fetch utang data and customer profiles
-            const [utangRes, foldersRes] = await Promise.all([
-                fetch('http://localhost:3000/api/get-all-utang'),
-                fetch('http://localhost:3000/api/customer-folders').catch(() => null)
-            ]);
-            const allUtang = await utangRes.json();
-            const allFolders = foldersRes ? await foldersRes.json() : [];
-
-            // Build map of customer current balances & credit limits
-            const customerBalanceMap = {};
-            const customerLimitMap = {};
-
-            if (Array.isArray(allFolders)) {
-                allFolders.forEach(f => {
-                    customerLimitMap[f.fullname] = parseFloat(f.credit_limit) || 2000.00;
-                });
-            }
-
-            const allCustomerNames = [...new Set(allUtang.map(u => u.customer_name))];
-            allCustomerNames.forEach(cust => {
-                const custTx = allUtang.filter(u => u.customer_name === cust);
-                const totalDebts = custTx.filter(u => !u.items_list.includes("Debt Payment")).reduce((s, d) => s + parseFloat(d.amount), 0);
-                const totalPayments = custTx.filter(u => u.items_list.includes("Debt Payment")).reduce((s, p) => s + parseFloat(p.amount), 0);
-                customerBalanceMap[cust] = Math.max(0, totalDebts - totalPayments);
-            });
-
-            // Calculate storewide active outstanding receivables
-            const storewideActiveDebt = Object.values(customerBalanceMap).reduce((sum, b) => sum + b, 0);
-
-            // FIFO settlement calculation for descriptions
-            const paymentSettlements = {};
-            allCustomerNames.forEach(cust => {
-                const custTx = allUtang.filter(u => u.customer_name === cust).reverse();
-                const debts = custTx.filter(u => !u.items_list.includes("Debt Payment"));
-                const payments = custTx.filter(u => u.items_list.includes("Debt Payment"));
-
-                let debtQueue = debts.map(d => {
-                    let items = [];
-                    try { items = JSON.parse(d.items_list); } catch(e) {}
-                    return {
-                        utang_id: d.utang_id,
-                        amount: parseFloat(d.amount),
-                        items: Array.isArray(items) ? items : [{ name: d.items_list, qty: 1 }],
-                        remainingUnpaid: parseFloat(d.amount)
-                    };
-                });
-
-                payments.forEach(pay => {
-                    let payAmt = parseFloat(pay.amount);
-                    let settled = [];
-
-                    for (let d of debtQueue) {
-                        if (payAmt <= 0) break;
-                        if (d.remainingUnpaid <= 0) continue;
-
-                        let covered = 0;
-                        if (payAmt >= d.remainingUnpaid) {
-                            covered = d.remainingUnpaid;
-                            payAmt -= d.remainingUnpaid;
-                            d.remainingUnpaid = 0;
-                        } else {
-                            covered = payAmt;
-                            d.remainingUnpaid -= payAmt;
-                            payAmt = 0;
-                        }
-
-                        if (covered > 0) {
-                            const ratio = covered / d.amount;
-                            d.items.forEach(item => {
-                                let q = Math.round((item.qty || 1) * ratio);
-                                if (q === 0 && ratio > 0) q = 1;
-                                settled.push(`${q}x ${item.name || item}`);
-                            });
-                        }
-                    }
-
-                    paymentSettlements[pay.utang_id] = settled.length > 0 ? settled.join(', ') : 'Debt Balance Settlement';
-                });
-            });
-
-            // Filter payments in date period
-            let periodPayments = allUtang.filter(tx => {
-                if (!tx.items_list.includes("Debt Payment")) return false;
-                const d = new Date(tx.date_borrowed);
-                return d >= startDate && d <= endDate;
-            });
-
-            // Apply Creditor Filter if specific creditor chosen
-            if (isIndividual) {
-                periodPayments = periodPayments.filter(tx => tx.customer_name === selectedCreditor);
-            }
-
-            // Build Table Header
+            // Immediately set table headers for collections so they are never left as sales headers
             if (isIndividual) {
                 tableHeader.innerHTML = `
                     <th style="padding: 10px 6px; width: 16%;">DATE PAID</th>
@@ -3303,12 +3317,116 @@ async function generateReportEngine() {
                 `;
             }
 
+            // Safe fetch of utang records
+            const utangRes = await fetch('http://localhost:3000/api/get-all-utang');
+            if (!utangRes.ok) throw new Error("Server returned status " + utangRes.status);
+            const allUtangData = await utangRes.json();
+            const allUtang = Array.isArray(allUtangData) ? allUtangData : [];
+
+            // Safe fetch of customer folders (tries customer-folders, then get-customers fallback)
+            let allFolders = [];
+            try {
+                const foldersRes = await fetch('http://localhost:3000/api/customer-folders');
+                if (foldersRes.ok) {
+                    allFolders = await foldersRes.json();
+                } else {
+                    const fallbackRes = await fetch('http://localhost:3000/api/get-customers');
+                    if (fallbackRes.ok) allFolders = await fallbackRes.json();
+                }
+            } catch(e) {
+                console.warn("Customer folders fetch fallback:", e);
+            }
+
+            // Build map of customer current balances & credit limits
+            const customerBalanceMap = {};
+            const customerLimitMap = {};
+
+            if (Array.isArray(allFolders)) {
+                allFolders.forEach(f => {
+                    customerLimitMap[f.fullname] = parseFloat(f.credit_limit) || 2000.00;
+                });
+            }
+
+            const allCustomerNames = [...new Set(allUtang.map(u => u.customer_name).filter(Boolean))];
+            allCustomerNames.forEach(cust => {
+                const custTx = allUtang.filter(u => u.customer_name === cust);
+                const totalDebts = custTx.filter(u => !(u.items_list || '').includes("Debt Payment")).reduce((s, d) => s + (parseFloat(d.amount) || 0), 0);
+                const totalPayments = custTx.filter(u => (u.items_list || '').includes("Debt Payment")).reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+                customerBalanceMap[cust] = Math.max(0, totalDebts - totalPayments);
+            });
+
+            // Calculate storewide active outstanding receivables
+            const storewideActiveDebt = Object.values(customerBalanceMap).reduce((sum, b) => sum + b, 0);
+
+            // FIFO settlement calculation for descriptions
+            const paymentSettlements = {};
+            allCustomerNames.forEach(cust => {
+                const custTx = allUtang.filter(u => u.customer_name === cust).reverse();
+                const debts = custTx.filter(u => !(u.items_list || '').includes("Debt Payment"));
+                const payments = custTx.filter(u => (u.items_list || '').includes("Debt Payment"));
+
+                let debtQueue = debts.map(d => {
+                    let items = [];
+                    try { items = JSON.parse(d.items_list); } catch(e) {}
+                    return {
+                        utang_id: d.utang_id,
+                        amount: parseFloat(d.amount) || 0,
+                        items: Array.isArray(items) ? items : [{ name: d.items_list, qty: 1 }],
+                        remainingUnpaid: parseFloat(d.amount) || 0
+                    };
+                });
+
+                payments.forEach(pay => {
+                    let payAmt = parseFloat(pay.amount) || 0;
+                    let settled = [];
+
+                    for (let d of debtQueue) {
+                        if (payAmt <= 0) break;
+                        if (d.remainingUnpaid <= 0) continue;
+
+                        let covered = 0;
+                        if (payAmt >= d.remainingUnpaid) {
+                            covered = d.remainingUnpaid;
+                            payAmt -= d.remainingUnpaid;
+                            d.remainingUnpaid = 0;
+                        } else {
+                            covered = payAmt;
+                            d.remainingUnpaid -= payAmt;
+                            payAmt = 0;
+                        }
+
+                        if (covered > 0) {
+                            const ratio = d.amount > 0 ? (covered / d.amount) : 0;
+                            d.items.forEach(item => {
+                                let q = Math.round((item.qty || 1) * ratio);
+                                if (q === 0 && ratio > 0) q = 1;
+                                settled.push(`${q}x ${item.name || item}`);
+                            });
+                        }
+                    }
+
+                    paymentSettlements[pay.utang_id] = settled.length > 0 ? settled.join(', ') : 'Debt Balance Settlement';
+                });
+            });
+
+            // Filter payments in date period
+            let periodPayments = allUtang.filter(tx => {
+                if (!(tx.items_list || '').includes("Debt Payment")) return false;
+                const d = new Date(tx.date_borrowed);
+                return d >= startDate && d <= endDate;
+            });
+
+            // Apply Creditor Filter if specific creditor chosen
+            if (isIndividual) {
+                periodPayments = periodPayments.filter(tx => tx.customer_name === selectedCreditor);
+            }
+
             let tableHtml = '';
             let totalCollected = 0;
             let totalProfitRealized = 0;
 
             periodPayments.forEach(tx => {
-                const amt = parseFloat(tx.amount);
+                const amt = parseFloat(tx.amount) || 0;
                 const prof = parseFloat(tx.profit) || 0;
                 totalCollected += amt;
                 totalProfitRealized += prof;
