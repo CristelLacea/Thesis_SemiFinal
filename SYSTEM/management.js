@@ -1343,8 +1343,29 @@ function removeUtangItem(i) { selectedUtangItems.splice(i, 1); refreshUtangUI();
 
 function openFolderModal() { const m = document.getElementById('folderModal'); if(m) m.style.display = 'flex'; }
 function closeFolderModal() { const m = document.getElementById('folderModal'); if(m) m.style.display = 'none'; document.getElementById('folderForm').reset(); }
-function viewCustomerDetails(id, n) { activeFolderCustomerName = n; document.getElementById('customerFolderList').style.display = 'none'; const tb = document.getElementById('ledgerSearchToolbar'); if(tb) tb.style.display = 'none'; document.getElementById('currentFolderName').innerText = `Folder: ${n}`; document.getElementById('specificCustomerView').style.display = 'block'; renderSpecificLedger(n); }
-function backToFolders() { activeFolderCustomerName = ''; document.getElementById('specificCustomerView').style.display = 'none'; const tb = document.getElementById('ledgerSearchToolbar'); if(tb) tb.style.display = 'flex'; document.getElementById('customerFolderList').style.display = 'grid'; renderCustomerFolders(); }
+function viewCustomerDetails(id, n) { 
+    activeFolderCustomerName = n; 
+    document.getElementById('customerFolderList').style.display = 'none'; 
+    const tb = document.getElementById('ledgerSearchToolbar'); 
+    if(tb) tb.style.display = 'none'; 
+    const kpi = document.getElementById('ledgerKpiGrid');
+    if(kpi) kpi.style.display = 'none';
+    document.getElementById('currentFolderName').innerText = `Folder: ${n}`; 
+    document.getElementById('specificCustomerView').style.display = 'block'; 
+    renderSpecificLedger(n); 
+}
+function backToFolders() { 
+    activeFolderCustomerName = ''; 
+    document.getElementById('specificCustomerView').style.display = 'none'; 
+    const tb = document.getElementById('ledgerSearchToolbar'); 
+    if(tb) tb.style.display = 'flex'; 
+    const kpi = document.getElementById('ledgerKpiGrid');
+    if(kpi && (typeof currentFolderViewTab === 'undefined' || currentFolderViewTab === 'ACTIVE')) {
+        kpi.style.display = 'grid';
+    }
+    document.getElementById('customerFolderList').style.display = 'grid'; 
+    renderCustomerFolders(); 
+}
 function switchFolderTab(t) {
     currentFolderViewTab = t;
     activeFolderCustomerName = "";
@@ -1352,6 +1373,8 @@ function switchFolderTab(t) {
     if (specificView) specificView.style.display = "none";
     const tb = document.getElementById("ledgerSearchToolbar");
     if (tb) tb.style.display = "flex";
+    const kpi = document.getElementById("ledgerKpiGrid");
+    if (kpi) kpi.style.display = (t === "ACTIVE") ? "grid" : "none";
     const searchInput = document.getElementById("searchCreditCustomer");
     if (searchInput) searchInput.value = "";
     const gridContainer = document.getElementById("customerFolderList");
@@ -1542,16 +1565,125 @@ async function renderCustomerFolders() {
         }
 
         const endpoint = currentFolderViewTab === "ACTIVE" ? "/api/get-customers" : "/api/get-archived-customers";
-        const res = await fetch(`http://localhost:3000${endpoint}`);
-        cachedCustomerFolders = await res.json();
+        
+        // Fetch customers and complete transaction ledger in parallel
+        const [custRes, utangRes] = await Promise.all([
+            fetch(`http://localhost:3000${endpoint}`),
+            fetch('http://localhost:3000/api/get-all-utang')
+        ]);
 
-        // Apply existing search filter or render all
+        const rawCustomers = await custRes.json();
+        const allUtang = await utangRes.json();
+
+        // Build quick lookup map of transactions per customer (case-insensitive)
+        const utangByCustomer = {};
+        if (Array.isArray(allUtang)) {
+            allUtang.forEach(tx => {
+                const nameKey = (tx.customer_name || "").trim().toLowerCase();
+                if (!utangByCustomer[nameKey]) {
+                    utangByCustomer[nameKey] = [];
+                }
+                utangByCustomer[nameKey].push(tx);
+            });
+        }
+
+        // Compute metrics for each customer
+        cachedCustomerFolders = (rawCustomers || []).map(c => {
+            const nameKey = (c.fullname || "").trim().toLowerCase();
+            const txList = utangByCustomer[nameKey] || [];
+            
+            let debtsSum = 0;
+            let paymentsSum = 0;
+            let lastTxDate = null;
+
+            txList.forEach(tx => {
+                const amt = parseFloat(tx.amount) || 0;
+                const isPayment = tx.items_list && tx.items_list.includes("Debt Payment");
+                if (isPayment) {
+                    paymentsSum += amt;
+                } else {
+                    debtsSum += amt;
+                }
+                if (tx.date_borrowed && (!lastTxDate || new Date(tx.date_borrowed) > new Date(lastTxDate))) {
+                    lastTxDate = tx.date_borrowed;
+                }
+            });
+
+            const totalDebt = Math.max(0, debtsSum - paymentsSum);
+            const limit = (c.credit_limit !== undefined && c.credit_limit !== null) ? parseFloat(c.credit_limit) : 2000.00;
+            const utilPct = limit > 0 ? (totalDebt / limit) * 100 : 0;
+            const availCredit = Math.max(0, limit - totalDebt);
+
+            return {
+                ...c,
+                totalDebt: totalDebt,
+                debtsSum: debtsSum,
+                paymentsSum: paymentsSum,
+                credit_limit_num: limit,
+                utilPct: utilPct,
+                availCredit: availCredit,
+                txCount: txList.length,
+                lastTxDate: lastTxDate
+            };
+        });
+
+        // Update Executive KPI Metrics Grid
+        const kpiGrid = document.getElementById("ledgerKpiGrid");
+        if (kpiGrid) {
+            if (currentFolderViewTab === "ARCHIVED") {
+                kpiGrid.style.display = "none";
+            } else {
+                kpiGrid.style.display = "grid";
+
+                let grandReceivables = 0;
+                let activeDebtorsCount = 0;
+                let highRiskCount = 0;
+                let totalCreditLine = 0;
+
+                cachedCustomerFolders.forEach(c => {
+                    grandReceivables += c.totalDebt;
+                    if (c.totalDebt > 0) activeDebtorsCount++;
+                    if (c.utilPct >= 80) highRiskCount++;
+                    totalCreditLine += c.credit_limit_num;
+                });
+
+                const storewideUtil = totalCreditLine > 0 ? (grandReceivables / totalCreditLine) * 100 : 0;
+
+                const kpiReceivablesEl = document.getElementById("kpiTotalReceivables");
+                if (kpiReceivablesEl) kpiReceivablesEl.innerText = `₱${grandReceivables.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+                const kpiDebtorsEl = document.getElementById("kpiActiveDebtors");
+                if (kpiDebtorsEl) kpiDebtorsEl.innerText = `${activeDebtorsCount} Debtor${activeDebtorsCount === 1 ? '' : 's'}`;
+
+                const kpiDebtorsSub = document.getElementById("kpiActiveDebtorsSub");
+                if (kpiDebtorsSub) kpiDebtorsSub.innerText = `Out of ${cachedCustomerFolders.length} total customer${cachedCustomerFolders.length === 1 ? '' : 's'}`;
+
+                const kpiRiskEl = document.getElementById("kpiHighRiskDebtors");
+                if (kpiRiskEl) kpiRiskEl.innerText = `${highRiskCount} Account${highRiskCount === 1 ? '' : 's'}`;
+
+                const kpiCreditLimitEl = document.getElementById("kpiTotalCreditLimit");
+                if (kpiCreditLimitEl) kpiCreditLimitEl.innerText = `₱${totalCreditLine.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+                const kpiStoreUtil = document.getElementById("kpiStoreUtilization");
+                if (kpiStoreUtil) kpiStoreUtil.innerText = `${storewideUtil.toFixed(1)}% storewide credit utilized`;
+            }
+        }
+
+        // Apply current filter & sort
         const searchInput = document.getElementById("searchCreditCustomer");
         const query = searchInput ? searchInput.value.trim().toLowerCase() : "";
         filterCustomerFolders(query);
 
     } catch (err) {
         console.error("Failed to render folders:", err);
+    }
+}
+
+function clearCreditSearch() {
+    const input = document.getElementById("searchCreditCustomer");
+    if (input) {
+        input.value = "";
+        filterCustomerFolders("");
     }
 }
 
@@ -1562,7 +1694,13 @@ function filterCustomerFolders(query = "") {
     const cleanQuery = (query || "").trim().toLowerCase();
     const isArchived = typeof currentFolderViewTab !== "undefined" && currentFolderViewTab === "ARCHIVED";
 
-    let filtered = cachedCustomerFolders || [];
+    // Toggle clear search button visibility
+    const clearBtn = document.getElementById("clearCreditSearchBtn");
+    if (clearBtn) {
+        clearBtn.style.display = cleanQuery ? "block" : "none";
+    }
+
+    let filtered = [...(cachedCustomerFolders || [])];
     if (cleanQuery) {
         filtered = filtered.filter(c => {
             const name = (c.fullname || "").toLowerCase();
@@ -1572,56 +1710,156 @@ function filterCustomerFolders(query = "") {
         });
     }
 
+    // Apply Sort Mode
+    const sortSelect = document.getElementById("sortCreditFolders");
+    const sortMode = sortSelect ? sortSelect.value : "debt-desc";
+
+    filtered.sort((a, b) => {
+        const debtA = a.totalDebt || 0;
+        const debtB = b.totalDebt || 0;
+        const utilA = a.utilPct || 0;
+        const utilB = b.utilPct || 0;
+        const nameA = a.fullname || "";
+        const nameB = b.fullname || "";
+
+        if (sortMode === "debt-desc") return debtB - debtA;
+        if (sortMode === "debt-asc") return debtA - debtB;
+        if (sortMode === "util-desc") return utilB - utilA;
+        if (sortMode === "name-asc") return nameA.localeCompare(nameB);
+        if (sortMode === "name-desc") return nameB.localeCompare(nameA);
+        if (sortMode === "recent") {
+            const dateA = a.lastTxDate ? new Date(a.lastTxDate).getTime() : 0;
+            const dateB = b.lastTxDate ? new Date(b.lastTxDate).getTime() : 0;
+            return dateB - dateA;
+        }
+        return debtB - debtA;
+    });
+
     // Update folder count badge
     const countBadge = document.getElementById("folderCountBadge");
     if (countBadge) {
         const total = (cachedCustomerFolders || []).length;
-        countBadge.innerText = cleanQuery 
-            ? `Showing ${filtered.length} of ${total} folder(s)` 
-            : `${total} ${isArchived ? "archived" : "active"} folder(s)`;
+        const filteredTotalDebt = filtered.reduce((sum, c) => sum + (c.totalDebt || 0), 0);
+        if (cleanQuery) {
+            countBadge.innerHTML = `<i class="fa-solid fa-filter"></i> Showing ${filtered.length} of ${total} • <strong style="color: #ff7675;">₱${filteredTotalDebt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>`;
+        } else {
+            countBadge.innerHTML = `<i class="fa-solid fa-folder-tree"></i> ${total} ${isArchived ? "Archived" : "Active"} Folder${total === 1 ? '' : 's'} • <strong style="color: #ff7675;">₱${filteredTotalDebt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>`;
+        }
     }
 
     if (filtered.length === 0) {
         const emptyMsg = cleanQuery 
             ? `No ledger folders match "${query}".`
             : (isArchived ? "No archived folders found." : "No active ledger folders found.");
-        container.innerHTML = `<p style="color: #94a3b8; padding: 40px; grid-column: 1/-1; text-align: center; font-weight: 500;"><i class="fa-solid fa-folder-open" style="display:block; font-size:2rem; margin-bottom:10px;"></i> ${emptyMsg}</p>`;
+        container.innerHTML = `
+            <div style="color: #94a3b8; padding: 45px 20px; grid-column: 1/-1; text-align: center; background: white; border-radius: 16px; border: 1px dashed #cbd5e1;">
+                <i class="fa-solid fa-folder-open" style="display:block; font-size:2.2rem; margin-bottom:12px; color: #cbd5e1;"></i>
+                <span style="font-size: 1rem; color: #64748b; font-weight: 600;">${emptyMsg}</span>
+            </div>`;
         return;
     }
 
     container.innerHTML = filtered.map(c => {
+        const totalDebt = c.totalDebt || 0;
+        const creditLimit = c.credit_limit_num || 2000.00;
+        const utilPct = c.utilPct || 0;
+        const availCredit = c.availCredit !== undefined ? c.availCredit : Math.max(0, creditLimit - totalDebt);
+        const txCount = c.txCount || 0;
+
+        let statusPillHtml = '';
+        let balanceColor = '#ffffff';
+        let meterColor = '#10b981';
+        let availColor = '#10b981';
+
+        if (isArchived) {
+            statusPillHtml = `<span class="folder-status-pill pill-archived"><i class="fa-solid fa-box-archive"></i> Archived</span>`;
+            balanceColor = '#94a3b8';
+            meterColor = '#64748b';
+            availColor = '#94a3b8';
+        } else if (totalDebt === 0) {
+            statusPillHtml = `<span class="folder-status-pill pill-settled"><i class="fa-solid fa-circle-check"></i> Settled (₱0)</span>`;
+            balanceColor = '#10b981';
+            meterColor = '#10b981';
+            availColor = '#10b981';
+        } else if (utilPct >= 100) {
+            statusPillHtml = `<span class="folder-status-pill pill-danger"><i class="fa-solid fa-triangle-exclamation"></i> Over Limit</span>`;
+            balanceColor = '#ff7675';
+            meterColor = '#ef4444';
+            availColor = '#ef4444';
+        } else if (utilPct >= 80) {
+            statusPillHtml = `<span class="folder-status-pill pill-warning"><i class="fa-solid fa-triangle-exclamation"></i> Near Limit (${utilPct.toFixed(0)}%)</span>`;
+            balanceColor = '#f59e0b';
+            meterColor = '#f59e0b';
+            availColor = '#f59e0b';
+        } else {
+            statusPillHtml = `<span class="folder-status-pill pill-good"><i class="fa-solid fa-shield-halved"></i> Good Standing</span>`;
+            balanceColor = '#ffffff';
+            meterColor = '#10b981';
+            availColor = '#10b981';
+        }
+
         const folderBackground = isArchived 
-            ? "background: linear-gradient(135deg, #64748b, #475569); box-shadow: 0 15px 35px rgba(100, 116, 139, 0.15);" 
+            ? "background: linear-gradient(135deg, #334155, #1e293b); box-shadow: 0 12px 28px rgba(30, 41, 59, 0.25);" 
             : "background: linear-gradient(135deg, #2c274d, #111021);";
             
-        const tabBackground = isArchived ? "background: #475569;" : "background: #17123f;";
+        const tabBackground = isArchived ? "background: #334155;" : "background: #17123f;";
+        const safeFullname = (c.fullname || "").replace(/'/g, "\\'");
 
         return `
-        <div class="customer-folder-card" style="${folderBackground}" onclick="viewCustomerDetails(${c.customer_id}, '${c.fullname}')">
-            <!-- Folder Tab -->
-            <div class="customer-folder-tab-lip" style="content: ''; position: absolute; top: -15px; left: 0; width: 80px; height: 30px; ${tabBackground} border-radius: 10px 10px 0 0; z-index: -1;"></div>
+        <div class="customer-folder-card" style="${folderBackground}" onclick="viewCustomerDetails(${c.customer_id}, '${safeFullname}')">
+            <!-- Folder Tab Lip -->
+            <div class="customer-folder-tab-lip" style="${tabBackground}">
+                ${statusPillHtml}
+            </div>
             
+            <!-- Peeking Paper Notepad -->
             <div class="folder-paper">
-                <span class="folder-label-name">${c.fullname}</span>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span class="folder-label-name" title="${c.fullname}">${c.fullname}</span>
+                    <span class="folder-id-badge">#${c.customer_id}</span>
+                </div>
                 <div class="paper-lines"></div>
             </div>
             
+            <!-- Folder Content -->
             <div class="folder-content">
+                <!-- Outstanding Balance Box -->
+                <div class="folder-balance-block">
+                    <span class="folder-balance-label">Outstanding Debt</span>
+                    <span class="folder-balance-amount" style="color: ${balanceColor};">₱${totalDebt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+
+                <!-- Credit Limit Utilization Meter -->
+                <div class="folder-utilization-box">
+                    <div class="utilization-header">
+                        <span>Limit: <strong>₱${creditLimit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></span>
+                        <span style="color: ${meterColor}; font-weight: 800;">${utilPct.toFixed(1)}%</span>
+                    </div>
+                    <div class="utilization-track">
+                        <div class="utilization-bar" style="width: ${Math.min(100, Math.max(0, utilPct))}%; background: ${meterColor};"></div>
+                    </div>
+                    <div class="utilization-footer">
+                        <span>Available: <strong style="color: ${availColor};">₱${availCredit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></span>
+                        <span>${txCount} record(s)</span>
+                    </div>
+                </div>
+
+                <!-- Contact Details -->
                 <div class="folder-details">
-                    <span><i class="fa-solid fa-phone"></i> ${c.contact_number || "N/A"}</span>
-                    <span><i class="fa-solid fa-location-dot"></i> ${c.address || "N/A"}</span>
+                    <span title="Contact Number"><i class="fa-solid fa-phone"></i> ${c.contact_number || "N/A"}</span>
+                    <span title="Address"><i class="fa-solid fa-location-dot"></i> ${c.address || "N/A"}</span>
                 </div>
                 
-                ${isArchived ? `
-                    <button onclick="restoreArchivedFolder(event, ${c.customer_id})" class="pay-btn" 
-                            style="position: absolute; bottom: 15px; right: 15px; background: #10b981; border: none; padding: 6px 12px; border-radius: 6px; font-size: 0.75rem; font-weight: bold; color: white; cursor: pointer; z-index: 50;">
-                        🔄 Restore
-                    </button>
-                ` : `
-                    <div class="folder-arrow">
-                        <i class="fa-solid fa-circle-chevron-right"></i>
-                    </div>
-                `}
+                <!-- Bottom Action Row -->
+                <div class="folder-action-row">
+                    ${isArchived ? `
+                        <button onclick="restoreArchivedFolder(event, ${c.customer_id})" class="folder-restore-btn" title="Restore customer folder to active ledger">
+                            <i class="fa-solid fa-rotate-left"></i> Restore Folder
+                        </button>
+                    ` : `
+                        <span class="folder-open-cue">Open Ledger <i class="fa-solid fa-arrow-right"></i></span>
+                    `}
+                </div>
             </div>
         </div>`;
     }).join("");

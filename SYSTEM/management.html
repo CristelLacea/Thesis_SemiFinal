@@ -313,14 +313,63 @@
         </div>
     </div>
     
-    <!-- Real-time Folder Search Bar -->
-    <div id="ledgerSearchToolbar" style="margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
-        <div style="position: relative; flex: 1; min-width: 280px; max-width: 480px;">
-            <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 0.95rem;"></i>
-            <input type="text" id="searchCreditCustomer" placeholder="Search customer folder by name, contact, or address..." oninput="filterCustomerFolders(this.value)" autocomplete="off"
-                   style="width: 100%; padding: 11px 15px 11px 40px; border-radius: 10px; border: 1px solid #cbd5e1; font-size: 0.92rem; outline: none; background: white; box-sizing: border-box; box-shadow: 0 2px 4px rgba(0,0,0,0.02); transition: border-color 0.2s;">
+    <!-- Executive KPI Metrics Grid -->
+    <div id="ledgerKpiGrid" class="ledger-kpi-grid">
+        <div class="ledger-kpi-card kpi-card-rose">
+            <div class="kpi-icon-bubble"><i class="fa-solid fa-coins"></i></div>
+            <div class="kpi-details">
+                <span class="kpi-label">Total Receivables (Utang)</span>
+                <p id="kpiTotalReceivables" class="kpi-number">₱0.00</p>
+                <span class="kpi-sub">Total active unpaid store credit</span>
+            </div>
         </div>
-        <span id="folderCountBadge" style="font-size: 0.85rem; color: #64748b; font-weight: 700; background: #f1f5f9; padding: 6px 12px; border-radius: 20px; border: 1px solid #e2e8f0;"></span>
+        <div class="ledger-kpi-card kpi-card-amber">
+            <div class="kpi-icon-bubble"><i class="fa-solid fa-users"></i></div>
+            <div class="kpi-details">
+                <span class="kpi-label">Active Debtors</span>
+                <p id="kpiActiveDebtors" class="kpi-number">0 Debtors</p>
+                <span id="kpiActiveDebtorsSub" class="kpi-sub">Customers with balance &gt; ₱0</span>
+            </div>
+        </div>
+        <div class="ledger-kpi-card kpi-card-fuchsia">
+            <div class="kpi-icon-bubble"><i class="fa-solid fa-triangle-exclamation"></i></div>
+            <div class="kpi-details">
+                <span class="kpi-label">At Risk (≥80% Limit)</span>
+                <p id="kpiHighRiskDebtors" class="kpi-number">0 Accounts</p>
+                <span class="kpi-sub">Near or reached credit ceiling</span>
+            </div>
+        </div>
+        <div class="ledger-kpi-card kpi-card-emerald">
+            <div class="kpi-icon-bubble"><i class="fa-solid fa-shield-halved"></i></div>
+            <div class="kpi-details">
+                <span class="kpi-label">Store Credit Line</span>
+                <p id="kpiTotalCreditLimit" class="kpi-number">₱0.00</p>
+                <span id="kpiStoreUtilization" class="kpi-sub">0.0% storewide utilized</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Real-time Folder Search & Sort Bar -->
+    <div id="ledgerSearchToolbar" class="ledger-toolbar">
+        <div class="ledger-search-box">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" id="searchCreditCustomer" placeholder="Search customer folder by name, contact, or address..." oninput="filterCustomerFolders(this.value)" autocomplete="off">
+            <button type="button" id="clearCreditSearchBtn" onclick="clearCreditSearch()" style="display:none;" title="Clear Search"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="ledger-toolbar-actions">
+            <div class="sort-select-wrapper">
+                <label for="sortCreditFolders"><i class="fa-solid fa-arrow-down-wide-short"></i> Sort:</label>
+                <select id="sortCreditFolders" onchange="filterCustomerFolders(document.getElementById('searchCreditCustomer').value)">
+                    <option value="debt-desc">Highest Debt First</option>
+                    <option value="debt-asc">Lowest Debt First</option>
+                    <option value="util-desc">Highest % Utilization</option>
+                    <option value="name-asc">Customer Name (A-Z)</option>
+                    <option value="name-desc">Customer Name (Z-A)</option>
+                    <option value="recent">Recently Active</option>
+                </select>
+            </div>
+            <span id="folderCountBadge" class="folder-count-badge"></span>
+        </div>
     </div>
 
     <div class="folder-grid" id="customerFolderList"></div> 
