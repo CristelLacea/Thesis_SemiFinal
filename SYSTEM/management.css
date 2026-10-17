@@ -2616,3 +2616,8 @@ td {
     background-color: #e2e8f0 !important;
 }
 
+.creditor-suggest-item:hover {
+    background-color: #f1f5f9 !important;
+}
+
+

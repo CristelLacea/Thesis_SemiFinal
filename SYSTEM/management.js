@@ -2895,10 +2895,13 @@ function populateReportCategoryDropdown(categories) {
     }
 }
 
+let cachedReportCreditors = [];
+
 async function populateReportCustomerDropdown() {
-    const select = document.getElementById('reportCustomerFilter');
-    if (!select) return;
-    const currentVal = select.value || 'ALL';
+    const hiddenInput = document.getElementById('reportCustomerFilter');
+    const searchInput = document.getElementById('reportCustomerSearchInput');
+    const clearBtn = document.getElementById('btnClearReportCustomer');
+    if (!hiddenInput) return;
 
     try {
         let customerNames = new Set();
@@ -2982,32 +2985,117 @@ async function populateReportCustomerDropdown() {
         activeDebtors.sort((a, b) => a.name.localeCompare(b.name));
         settledAccounts.sort((a, b) => a.name.localeCompare(b.name));
 
-        let html = '<option value="ALL">All Creditors (Storewide)</option>';
+        cachedReportCreditors = [...activeDebtors, ...settledAccounts];
 
-        if (activeDebtors.length > 0) {
-            html += `<optgroup label="Active Debtors (${activeDebtors.length})">`;
-            activeDebtors.forEach(c => {
-                html += `<option value="${c.name}">${c.name} — ₱${c.balance.toFixed(2)} debt</option>`;
-            });
-            html += `</optgroup>`;
-        }
-
-        if (settledAccounts.length > 0) {
-            html += `<optgroup label="Settled Accounts (${settledAccounts.length})">`;
-            settledAccounts.forEach(c => {
-                html += `<option value="${c.name}">${c.name} — Settled (₱0.00)</option>`;
-            });
-            html += `</optgroup>`;
-        }
-
-        select.innerHTML = html;
-        if (currentVal && Array.from(select.options).some(o => o.value === currentVal)) {
-            select.value = currentVal;
+        // Sync input display
+        const currentVal = hiddenInput.value || 'ALL';
+        if (searchInput) {
+            if (currentVal === 'ALL') {
+                searchInput.value = 'All Creditors (Storewide)';
+                if (clearBtn) clearBtn.style.display = 'none';
+            } else {
+                searchInput.value = currentVal;
+                if (clearBtn) clearBtn.style.display = 'block';
+            }
         }
     } catch (err) {
         console.error("Failed to load customer list for reports:", err);
     }
 }
+
+function showCreditorSuggestions(filterText = '') {
+    const box = document.getElementById('reportCustomerSuggestions');
+    if (!box) return;
+
+    const query = (filterText || '').trim().toLowerCase();
+    let matches = [];
+
+    if (!query || query === 'all' || query.includes('storewide')) {
+        // Show up to 8 top creditors
+        matches = cachedReportCreditors.slice(0, 8);
+    } else {
+        matches = cachedReportCreditors.filter(c => c.name.toLowerCase().includes(query));
+    }
+
+    let html = `
+        <div class="creditor-suggest-item" onclick="selectCreditorReport('ALL')" style="padding: 9px 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e2e8f0; background: #f8fafc; font-weight: 700; color: #1e293b;">
+            <span><i class="fa-solid fa-users" style="color: #64748b; margin-right: 6px;"></i> All Creditors (Storewide)</span>
+            <span style="font-size: 0.72rem; color: #64748b; font-weight: 600;">Storewide</span>
+        </div>
+    `;
+
+    if (matches.length === 0) {
+        html += `<div style="padding: 14px 12px; color: #94a3b8; font-size: 0.8rem; text-align: center; font-style: italic;">No creditor found matching "${filterText}"</div>`;
+    } else {
+        matches.forEach(c => {
+            const isDebt = c.balance > 0;
+            const badge = isDebt 
+                ? `<span style="color: #be123c; font-weight: 700; font-size: 0.72rem; background: #fff1f2; padding: 2px 6px; border-radius: 4px; border: 1px solid #fecdd3;">₱${c.balance.toFixed(2)} debt</span>`
+                : `<span style="color: #059669; font-weight: 700; font-size: 0.72rem; background: #ecfdf5; padding: 2px 6px; border-radius: 4px; border: 1px solid #a7f3d0;">Settled</span>`;
+            
+            const safeName = c.name.replace(/'/g, "\\'");
+            html += `
+                <div class="creditor-suggest-item" onclick="selectCreditorReport('${safeName}')" style="padding: 8px 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; transition: background 0.15s;">
+                    <span style="font-weight: 600; color: #1e293b; font-size: 0.82rem;">${c.name}</span>
+                    ${badge}
+                </div>
+            `;
+        });
+    }
+
+    box.innerHTML = html;
+    box.style.display = 'block';
+}
+
+function onCreditorSearchInput(val) {
+    showCreditorSuggestions(val);
+}
+
+function selectCreditorReport(name) {
+    const hiddenInput = document.getElementById('reportCustomerFilter');
+    const searchInput = document.getElementById('reportCustomerSearchInput');
+    const clearBtn = document.getElementById('btnClearReportCustomer');
+    const box = document.getElementById('reportCustomerSuggestions');
+
+    if (hiddenInput) hiddenInput.value = name;
+    if (searchInput) {
+        searchInput.value = name === 'ALL' ? 'All Creditors (Storewide)' : name;
+    }
+    if (clearBtn) {
+        clearBtn.style.display = name === 'ALL' ? 'none' : 'block';
+    }
+    if (box) {
+        box.style.display = 'none';
+    }
+
+    generateReportEngine();
+}
+
+function resetReportCustomerToAll() {
+    selectCreditorReport('ALL');
+}
+
+function hideCreditorSuggestions() {
+    const box = document.getElementById('reportCustomerSuggestions');
+    if (box) box.style.display = 'none';
+
+    const hiddenInput = document.getElementById('reportCustomerFilter');
+    const searchInput = document.getElementById('reportCustomerSearchInput');
+    if (hiddenInput && searchInput) {
+        searchInput.value = hiddenInput.value === 'ALL' ? 'All Creditors (Storewide)' : hiddenInput.value;
+    }
+}
+
+// Close creditor suggestion box when clicking outside
+document.addEventListener('click', (e) => {
+    const wrapper = document.getElementById('reportCustomerSelectWrapper');
+    if (wrapper && !wrapper.contains(e.target)) {
+        const box = document.getElementById('reportCustomerSuggestions');
+        if (box && box.style.display !== 'none') {
+            hideCreditorSuggestions();
+        }
+    }
+});
 
 function setReportType(type) {
     currentReportType = type;

@@ -791,12 +791,28 @@
                 </select>
             </div>
 
-            <!-- Creditor Filter (Visible on Collections Report) -->
-            <div id="reportCustomerSelectWrapper" style="display: none; align-items: center; gap: 8px;">
+            <!-- Creditor Filter (Visible on Collections Report - Option A Searchable) -->
+            <div id="reportCustomerSelectWrapper" style="display: none; align-items: center; gap: 8px; position: relative;">
                 <label style="font-weight: 700; font-size: 0.82rem; color: #475569;"><i class="fa-solid fa-user-tag"></i> Creditor:</label>
-                <select id="reportCustomerFilter" onchange="generateReportEngine()" style="padding: 7px 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-weight: 600; font-size: 0.82rem; color: #1e293b; outline: none; background: white; max-width: 260px;">
-                    <option value="ALL">All Creditors (Storewide)</option>
-                </select>
+                <input type="hidden" id="reportCustomerFilter" value="ALL">
+                <div style="position: relative; display: flex; align-items: center;">
+                    <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 10px; color: #94a3b8; font-size: 0.78rem; pointer-events: none;"></i>
+                    <input type="text" id="reportCustomerSearchInput" 
+                           placeholder="Search creditor or ALL..." 
+                           value="All Creditors (Storewide)" 
+                           autocomplete="off" 
+                           onfocus="this.select(); showCreditorSuggestions(this.value === 'All Creditors (Storewide)' ? '' : this.value);" 
+                           oninput="onCreditorSearchInput(this.value)" 
+                           style="padding: 7px 28px 7px 28px; border-radius: 8px; border: 1px solid #cbd5e1; font-weight: 600; font-size: 0.82rem; color: #1e293b; outline: none; background: white; width: 220px; transition: border-color 0.2s;">
+                    <button type="button" id="btnClearReportCustomer" onclick="resetReportCustomerToAll()" 
+                            title="Reset to All Creditors" 
+                            style="display: none; position: absolute; right: 8px; background: none; border: none; color: #94a3b8; cursor: pointer; padding: 2px 4px; font-size: 0.85rem;">
+                        <i class="fa-solid fa-circle-xmark"></i>
+                    </button>
+                </div>
+                <!-- Floating suggestions dropdown (capped to 200px max height) -->
+                <div id="reportCustomerSuggestions" style="display: none; position: absolute; top: calc(100% + 5px); left: 75px; width: 260px; max-height: 200px; overflow-y: auto; background: white; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); z-index: 9999;">
+                </div>
             </div>
 
             <div class="date-input-wrapper" style="display: flex; align-items: center; gap: 8px;">
