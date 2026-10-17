@@ -1343,24 +1343,20 @@ function removeUtangItem(i) { selectedUtangItems.splice(i, 1); refreshUtangUI();
 
 function openFolderModal() { const m = document.getElementById('folderModal'); if(m) m.style.display = 'flex'; }
 function closeFolderModal() { const m = document.getElementById('folderModal'); if(m) m.style.display = 'none'; document.getElementById('folderForm').reset(); }
-function viewCustomerDetails(id, n) { activeFolderCustomerName = n; document.getElementById('customerFolderList').style.display = 'none'; document.getElementById('currentFolderName').innerText = `Folder: ${n}`; document.getElementById('specificCustomerView').style.display = 'block'; renderSpecificLedger(n); }
-function backToFolders() { activeFolderCustomerName = ""; document.getElementById('specificCustomerView').style.display = 'none'; document.getElementById('customerFolderList').style.display = 'grid'; renderCustomerFolders(); }
-function switchFolderTab(t) { 
-    // 1. Set the active tab state ('ACTIVE' or 'ARCHIVED')
-    currentFolderViewTab = t; 
-    
-    // 2. Clear out any deep folder view context so it doesn't get stuck open
+function viewCustomerDetails(id, n) { activeFolderCustomerName = n; document.getElementById('customerFolderList').style.display = 'none'; const tb = document.getElementById('ledgerSearchToolbar'); if(tb) tb.style.display = 'none'; document.getElementById('currentFolderName').innerText = `Folder: ${n}`; document.getElementById('specificCustomerView').style.display = 'block'; renderSpecificLedger(n); }
+function backToFolders() { activeFolderCustomerName = ''; document.getElementById('specificCustomerView').style.display = 'none'; const tb = document.getElementById('ledgerSearchToolbar'); if(tb) tb.style.display = 'flex'; document.getElementById('customerFolderList').style.display = 'grid'; renderCustomerFolders(); }
+function switchFolderTab(t) {
+    currentFolderViewTab = t;
     activeFolderCustomerName = "";
-    
-    // 3. Reset the visibility panels so it shows the card grid layout instead of an empty table sheet
-    const specificView = document.getElementById('specificCustomerView');
-    if (specificView) specificView.style.display = 'none';
-    
-    const gridContainer = document.getElementById('customerFolderList');
-    if (gridContainer) gridContainer.style.display = 'grid';
-
-    // 4. Safely re-render the appropriate folders group database pool natively
-    renderCustomerFolders(); 
+    const specificView = document.getElementById("specificCustomerView");
+    if (specificView) specificView.style.display = "none";
+    const tb = document.getElementById("ledgerSearchToolbar");
+    if (tb) tb.style.display = "flex";
+    const searchInput = document.getElementById("searchCreditCustomer");
+    if (searchInput) searchInput.value = "";
+    const gridContainer = document.getElementById("customerFolderList");
+    if (gridContainer) gridContainer.style.display = "grid";
+    renderCustomerFolders();
 }
 
 let isLedgerPaymentProcessing = false;
@@ -1513,67 +1509,122 @@ async function restoreProductFromArchive(id) {
     }
 }
 
+let cachedCustomerFolders = [];
+
 async function renderCustomerFolders() {
-    const container = document.getElementById('customerFolderList');
+    const container = document.getElementById("customerFolderList");
     if (!container) return;
 
     try {
-        // Fallback state initialization if tracking flag isn't set yet
-        if (typeof currentFolderViewTab === 'undefined') {
-            window.currentFolderViewTab = 'ACTIVE';
+        if (typeof currentFolderViewTab === "undefined") {
+            window.currentFolderViewTab = "ACTIVE";
         }
 
-        const endpoint = currentFolderViewTab === 'ACTIVE' ? '/api/get-customers' : '/api/get-archived-customers';
-        const res = await fetch(`http://localhost:3000${endpoint}`); 
-        const customers = await res.json();
-
-        if (!customers || customers.length === 0) {
-            container.innerHTML = `<p style="color: #94a3b8; padding: 40px; grid-column: 1/-1; text-align: center; font-weight: 500;"><i class="fa-solid fa-folder-open" style="display:block; font-size:2rem; margin-bottom:10px;"></i> No folders found in this category.</p>`;
-            return;
+        // Toggle active button tab styling
+        const btnActive = document.getElementById("btnViewActiveFolders");
+        const btnArchived = document.getElementById("btnViewArchivedFolders");
+        if (btnActive && btnArchived) {
+            if (currentFolderViewTab === "ACTIVE") {
+                btnActive.classList.add("active");
+                btnActive.style.background = "#1d2b38";
+                btnActive.style.color = "white";
+                btnArchived.classList.remove("active");
+                btnArchived.style.background = "white";
+                btnArchived.style.color = "#1e293b";
+            } else {
+                btnArchived.classList.add("active");
+                btnArchived.style.background = "#1d2b38";
+                btnArchived.style.color = "white";
+                btnActive.classList.remove("active");
+                btnActive.style.background = "white";
+                btnActive.style.color = "#1e293b";
+            }
         }
 
-        container.innerHTML = customers.map(c => {
-            const isArchived = currentFolderViewTab === 'ARCHIVED';
-            
-            // Matte layout configuration profiles mapping to status rulesets
-            const folderBackground = isArchived 
-                ? 'background: linear-gradient(135deg, #64748b, #475569); box-shadow: 0 15px 35px rgba(100, 116, 139, 0.15);' 
-                : 'background: linear-gradient(135deg, #2c274d, #111021);';
-                
-            const tabBackground = isArchived ? 'background: #475569;' : 'background: #17123f;';
+        const endpoint = currentFolderViewTab === "ACTIVE" ? "/api/get-customers" : "/api/get-archived-customers";
+        const res = await fetch(`http://localhost:3000${endpoint}`);
+        cachedCustomerFolders = await res.json();
 
-            return `
-            <div class="customer-folder-card" style="${folderBackground}" onclick="viewCustomerDetails(${c.customer_id}, '${c.fullname}')">
-                <!-- Folder Tab -->
-                <div class="customer-folder-tab-lip" style="content: ''; position: absolute; top: -15px; left: 0; width: 80px; height: 30px; ${tabBackground} border-radius: 10px 10px 0 0; z-index: -1;"></div>
-                
-                <div class="folder-paper">
-                    <span class="folder-label-name">${c.fullname}</span>
-                    <div class="paper-lines"></div>
-                </div>
-                
-                <div class="folder-content">
-                    <div class="folder-details">
-                        <span><i class="fa-solid fa-phone"></i> ${c.contact_number || 'N/A'}</span>
-                        <span><i class="fa-solid fa-location-dot"></i> ${c.address || 'N/A'}</span>
-                    </div>
-                    
-                    ${isArchived ? `
-                        <button onclick="restoreArchivedFolder(event, ${c.customer_id})" class="pay-btn" 
-                                style="position: absolute; bottom: 15px; right: 15px; background: #10b981; border: none; padding: 6px 12px; border-radius: 6px; font-size: 0.75rem; font-weight: bold; color: white; cursor: pointer; z-index: 50;">
-                            🔄 Restore
-                        </button>
-                    ` : `
-                        <div class="folder-arrow">
-                            <i class="fa-solid fa-circle-chevron-right"></i>
-                        </div>
-                    `}
-                </div>
-            </div>`;
-        }).join('');
-    } catch (err) { 
-        console.error("Failed to render folders:", err); 
+        // Apply existing search filter or render all
+        const searchInput = document.getElementById("searchCreditCustomer");
+        const query = searchInput ? searchInput.value.trim().toLowerCase() : "";
+        filterCustomerFolders(query);
+
+    } catch (err) {
+        console.error("Failed to render folders:", err);
     }
+}
+
+function filterCustomerFolders(query = "") {
+    const container = document.getElementById("customerFolderList");
+    if (!container) return;
+
+    const cleanQuery = (query || "").trim().toLowerCase();
+    const isArchived = typeof currentFolderViewTab !== "undefined" && currentFolderViewTab === "ARCHIVED";
+
+    let filtered = cachedCustomerFolders || [];
+    if (cleanQuery) {
+        filtered = filtered.filter(c => {
+            const name = (c.fullname || "").toLowerCase();
+            const phone = (c.contact_number || "").toLowerCase();
+            const address = (c.address || "").toLowerCase();
+            return name.includes(cleanQuery) || phone.includes(cleanQuery) || address.includes(cleanQuery);
+        });
+    }
+
+    // Update folder count badge
+    const countBadge = document.getElementById("folderCountBadge");
+    if (countBadge) {
+        const total = (cachedCustomerFolders || []).length;
+        countBadge.innerText = cleanQuery 
+            ? `Showing ${filtered.length} of ${total} folder(s)` 
+            : `${total} ${isArchived ? "archived" : "active"} folder(s)`;
+    }
+
+    if (filtered.length === 0) {
+        const emptyMsg = cleanQuery 
+            ? `No ledger folders match "${query}".`
+            : (isArchived ? "No archived folders found." : "No active ledger folders found.");
+        container.innerHTML = `<p style="color: #94a3b8; padding: 40px; grid-column: 1/-1; text-align: center; font-weight: 500;"><i class="fa-solid fa-folder-open" style="display:block; font-size:2rem; margin-bottom:10px;"></i> ${emptyMsg}</p>`;
+        return;
+    }
+
+    container.innerHTML = filtered.map(c => {
+        const folderBackground = isArchived 
+            ? "background: linear-gradient(135deg, #64748b, #475569); box-shadow: 0 15px 35px rgba(100, 116, 139, 0.15);" 
+            : "background: linear-gradient(135deg, #2c274d, #111021);";
+            
+        const tabBackground = isArchived ? "background: #475569;" : "background: #17123f;";
+
+        return `
+        <div class="customer-folder-card" style="${folderBackground}" onclick="viewCustomerDetails(${c.customer_id}, '${c.fullname}')">
+            <!-- Folder Tab -->
+            <div class="customer-folder-tab-lip" style="content: ''; position: absolute; top: -15px; left: 0; width: 80px; height: 30px; ${tabBackground} border-radius: 10px 10px 0 0; z-index: -1;"></div>
+            
+            <div class="folder-paper">
+                <span class="folder-label-name">${c.fullname}</span>
+                <div class="paper-lines"></div>
+            </div>
+            
+            <div class="folder-content">
+                <div class="folder-details">
+                    <span><i class="fa-solid fa-phone"></i> ${c.contact_number || "N/A"}</span>
+                    <span><i class="fa-solid fa-location-dot"></i> ${c.address || "N/A"}</span>
+                </div>
+                
+                ${isArchived ? `
+                    <button onclick="restoreArchivedFolder(event, ${c.customer_id})" class="pay-btn" 
+                            style="position: absolute; bottom: 15px; right: 15px; background: #10b981; border: none; padding: 6px 12px; border-radius: 6px; font-size: 0.75rem; font-weight: bold; color: white; cursor: pointer; z-index: 50;">
+                        🔄 Restore
+                    </button>
+                ` : `
+                    <div class="folder-arrow">
+                        <i class="fa-solid fa-circle-chevron-right"></i>
+                    </div>
+                `}
+            </div>
+        </div>`;
+    }).join("");
 }
 
 // --- CREDIT LEDGER: ITEM TRANSACTION LIST table ---
