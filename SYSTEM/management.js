@@ -154,7 +154,7 @@ async function openModal(event, id = null) {
             document.getElementById('prodCapital').value = p.price_capital;
             document.getElementById('prodStock').value = p.stock_Qty;
             document.getElementById('prodImg').value = p.img_Url;
-            document.getElementById('prodFav').checked = p.Favorite === 1;
+            const favEl = document.getElementById('prodFav'); if (favEl) favEl.checked = false;
             if(p.expiry_Date) {
                 document.getElementById('prodExpiry').value = p.expiry_Date.split('T')[0];
             }
@@ -191,7 +191,7 @@ document.getElementById('productForm')?.addEventListener('submit', async (e) => 
         stock: parseInt(document.getElementById('prodStock').value) || 0,
         expiry: document.getElementById('prodExpiry').value || null,
         img: document.getElementById('prodImg').value || 'https://via.placeholder.com/150',
-        fav: document.getElementById('prodFav').checked ? 1 : 0
+        fav: 0
     };
 
     try {
@@ -247,6 +247,7 @@ document.getElementById('productForm')?.addEventListener('submit', async (e) => 
 
 // --- CENTRALIZED CATEGORIES THEME REGISTRY ---
 const categoryThemeRegistry = {
+    "⭐ TOP SELLERS": { icon: "fa-solid fa-star", color: "#f1c40f", bg: "#fef9e7" },
     "⭐ FAVORITES": { icon: "fa-solid fa-star", color: "#f1c40f", bg: "#fef9e7" },
     "CHIPS": { icon: "fa-solid fa-cookie", color: "#d97706", bg: "#fef3c7" },
     "DRINKS": { icon: "fa-solid fa-wine-bottle", color: "#2563eb", bg: "#eff6ff" },
@@ -262,16 +263,58 @@ const categoryThemeRegistry = {
 let globalActiveCategoryName = ""; // Tracks which category is currently open
 
 let cachedProductsList = [];
+let productSalesVolumeMap = {}; // prod_name -> totalQtySold
+let topSellingProductNames = new Set(); // Set of names in top 10
+let productRankMap = {}; // prod_name -> rank (1, 2, 3...)
+
+function computeSalesRankings(sales) {
+    const volumeMap = {};
+    if (Array.isArray(sales)) {
+        sales.forEach(sale => {
+            let items = [];
+            try {
+                items = typeof sale.items_json === 'string' ? JSON.parse(sale.items_json) : sale.items_json;
+            } catch(e) { return; }
+            if (!items || !Array.isArray(items)) return;
+
+            items.forEach(item => {
+                if (item.name === 'Debt Payment' || item.isCollection === true) return;
+                const name = (item.name || '').trim();
+                if (!name) return;
+                const qty = parseInt(item.qty) || 0;
+                volumeMap[name] = (volumeMap[name] || 0) + qty;
+            });
+        });
+    }
+
+    productSalesVolumeMap = volumeMap;
+
+    const ranked = Object.entries(volumeMap)
+        .filter(([name, qty]) => qty > 0)
+        .sort((a, b) => b[1] - a[1]);
+
+    const top10 = ranked.slice(0, 10);
+    topSellingProductNames = new Set(top10.map(([name]) => name));
+
+    productRankMap = {};
+    top10.forEach(([name], idx) => {
+        productRankMap[name] = idx + 1;
+    });
+}
 
 async function loadProductsCache() {
     try {
-        const response = await fetch('http://localhost:3000/api/products');
-        cachedProductsList = await response.json();
+        const [prodRes, salesRes] = await Promise.all([
+            fetch('http://localhost:3000/api/products'),
+            fetch('http://localhost:3000/api/sales')
+        ]);
+        cachedProductsList = await prodRes.json();
+        const sales = await salesRes.json();
+        computeSalesRankings(sales);
     } catch (error) {
-        console.error("Error loading products cache:", error);
+        console.error("Error loading products/sales cache:", error);
     }
 }
-
 async function refreshProductsUI() {
     await loadProductsCache();
     await renderTable();
@@ -292,11 +335,11 @@ async function renderTable() {
         // Exclude archived items natively
         const activeProducts = productsFromDB.filter(p => p.is_archived === 0 || p.is_archived === null);
 
-        // Group active items by category name
+        // Group active items by category name, dynamically allocating top sellers into Top Sellers category
         const grouped = activeProducts.reduce((acc, p) => {
-            if (p.Favorite === 1) {
-                if (!acc['⭐ FAVORITES']) acc['⭐ FAVORITES'] = [];
-                acc['⭐ FAVORITES'].push(p);
+            if (topSellingProductNames.has(p.prod_name)) {
+                if (!acc['⭐ TOP SELLERS']) acc['⭐ TOP SELLERS'] = [];
+                acc['⭐ TOP SELLERS'].push(p);
             }
             
             let cat = p.prod_category ? p.prod_category.toUpperCase().trim() : 'UNCATEGORIZED';
@@ -305,10 +348,15 @@ async function renderTable() {
             return acc;
         }, {});
 
-        // Sort category names alphabetically, keeping favorites at position index 0
+        // If top sellers exist, sort them by sales rank inside the group
+        if (grouped['⭐ TOP SELLERS']) {
+            grouped['⭐ TOP SELLERS'].sort((a, b) => (productRankMap[a.prod_name] || 999) - (productRankMap[b.prod_name] || 999));
+        }
+
+        // Sort category names alphabetically, keeping top sellers at position index 0
         const sortedCategories = Object.keys(grouped).sort((a, b) => {
-            if (a.includes('FAVORITES')) return -1;
-            if (b.includes('FAVORITES')) return 1;
+            if (a.includes('TOP SELLERS') || a.includes('FAVORITES')) return -1;
+            if (b.includes('TOP SELLERS') || b.includes('FAVORITES')) return 1;
             return a.localeCompare(b);
         });
 
@@ -373,40 +421,58 @@ function compileFilteredCategoryItems(itemsArray) {
     const tbody = document.getElementById('inventoryBody');
     if (!tbody) return;
 
-    // Sort items alphabetically by product name
-    itemsArray.sort((a, b) => a.prod_name.localeCompare(b.prod_name));
+    const isTopCategory = globalActiveCategoryName.includes("TOP SELLERS") || globalActiveCategoryName.includes("FAVORITES");
+    if (isTopCategory) {
+        itemsArray.sort((a, b) => (productRankMap[a.prod_name] || 999) - (productRankMap[b.prod_name] || 999));
+    } else {
+        itemsArray.sort((a, b) => a.prod_name.localeCompare(b.prod_name));
+    }
 
     if (itemsArray.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:30px; color:#94a3b8;">No active items assigned here.</td></tr>';
+        const emptyMsg = isTopCategory 
+            ? 'No sales recorded yet. Top selling items will appear here automatically as purchases are processed at checkout.'
+            : 'No active items assigned here.';
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:30px; color:#94a3b8;">${emptyMsg}</td></tr>`;
         return;
     }
 
-    tbody.innerHTML = itemsArray.map(p => `
-        <tr>
-            <td><img src="${p.img_Url}" class="prod-img-sm" style="width:45px; height:45px; object-fit:contain; background:white; border:1px solid #e2e8f0; border-radius:8px;"></td>
-            <td style="font-weight:700; color:#1e293b;">${p.prod_name}</td>
-            <td style="color:#64748b; font-weight:500;">₱${parseFloat(p.orig_price).toFixed(2)}</td>
-            <td style="color:#64748b; font-weight:500;">₱${parseFloat(p.price_capital).toFixed(2)}</td>
-            <td style="font-weight:800; color:#0f172a;">₱${(parseFloat(p.orig_price) + parseFloat(p.price_capital)).toFixed(2)}</td>
-            <td style="text-align:center;"><span class="stock-badge ${p.stock_Qty <= 5 ? 'stock-low' : 'stock-high'}">${p.stock_Qty}</span></td>
-            <td style="text-align:center;"><i class="${p.Favorite ? 'fa-solid' : 'fa-regular'} fa-star" style="color: #f1c40f; cursor:pointer; font-size:1.05rem;" onclick="toggleFav(${p.prod_id})"></i></td>
-            <td style="text-align:right;">
-                <button class="action-btn" type="button" onclick="openModal(event, ${p.prod_id})" style="color:#64748b; margin-right:8px;">
-                <i class="fa-solid fa-pen"></i>
-            </button>
-            <button class="action-btn" type="button" onclick="archiveProduct(${p.prod_id})" style="color: #f59e0b;">
-                <i class="fa-solid fa-box-archive"></i>
-            </button>
-        </td>
-    </tr>`).join('');
+    tbody.innerHTML = itemsArray.map(p => {
+        const isTop = topSellingProductNames.has(p.prod_name);
+        const rank = productRankMap[p.prod_name];
+        const soldQty = productSalesVolumeMap[p.prod_name] || 0;
+        const starBadge = isTop
+            ? `<span style="display:inline-flex; align-items:center; justify-content:center; gap:4px; background:#fef9e7; border:1px solid #fde047; padding:2px 7px; border-radius:12px; color:#b45309; font-size:0.75rem; font-weight:800; cursor:help;" title="⭐ Rank #${rank} Top Seller (${soldQty} sold across transactions)"><i class="fa-solid fa-star" style="color:#eab308;"></i> #${rank}</span>`
+            : `<span style="display:inline-flex; align-items:center; justify-content:center; color:#cbd5e1; font-size:0.95rem; cursor:help;" title="${soldQty > 0 ? `${soldQty} units sold (Rank #${rank || 'N/A'})` : 'No sales recorded yet'}"><i class="fa-regular fa-star"></i></span>`;
+
+        return `
+            <tr>
+                <td><img src="${p.img_Url}" class="prod-img-sm" style="width:45px; height:45px; object-fit:contain; background:white; border:1px solid #e2e8f0; border-radius:8px;"></td>
+                <td style="font-weight:700; color:#1e293b;">${p.prod_name}</td>
+                <td style="color:#64748b; font-weight:500;">₱${parseFloat(p.orig_price).toFixed(2)}</td>
+                <td style="color:#64748b; font-weight:500;">₱${parseFloat(p.price_capital).toFixed(2)}</td>
+                <td style="font-weight:800; color:#0f172a;">₱${(parseFloat(p.orig_price) + parseFloat(p.price_capital)).toFixed(2)}</td>
+                <td style="text-align:center;"><span class="stock-badge ${p.stock_Qty <= 5 ? 'stock-low' : 'stock-high'}">${p.stock_Qty}</span></td>
+                <td style="text-align:center;">${starBadge}</td>
+                <td style="text-align:right;">
+                    <button class="action-btn" type="button" onclick="openModal(event, ${p.prod_id})" style="color:#64748b; margin-right:8px;" title="Edit Product">
+                        <i class="fa-solid fa-pen"></i>
+                    </button>
+                    <button class="action-btn" type="button" onclick="archiveProduct(${p.prod_id})" style="color: #f59e0b;" title="Archive Product">
+                        <i class="fa-solid fa-box-archive"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
 }
 
 // Handles typing inside the search input box inside an open category panel
 function filterActiveCategoryItems(query) {
     let pool = cachedProductsList.filter(p => (p.is_archived === 0 || p.is_archived === null));
     
-    if (globalActiveCategoryName === "⭐ FAVORITES") {
-        pool = pool.filter(p => p.Favorite === 1);
+    if (globalActiveCategoryName.includes("TOP SELLERS") || globalActiveCategoryName.includes("FAVORITES")) {
+        pool = pool.filter(p => topSellingProductNames.has(p.prod_name))
+                   .sort((a, b) => (productRankMap[a.prod_name] || 999) - (productRankMap[b.prod_name] || 999));
     } else {
         pool = pool.filter(p => (p.prod_category ? p.prod_category.toUpperCase().trim() : 'UNCATEGORIZED') === globalActiveCategoryName);
     }
@@ -986,43 +1052,10 @@ function toggleHistoryOption(elementId) {
     el.classList.toggle('expanded');
 }
 
-async function toggleFav(id) {
-    try {
-        // 1. Get the current product state from cache
-        const p = cachedProductsList.find(prod => prod.prod_id === id);
-        if (!p) return;
-
-        // 2. Prepare data, EXPLICITLY ensuring the category is preserved
-        const updatedData = { 
-            barcode: p.barcode_number, // Ensure barcode is included
-            name: p.prod_name, 
-            category: p.prod_category || 'UNCATEGORIZED', // Preserve existing category
-            orig_price: p.orig_price, 
-            price_capital: p.price_capital, 
-            stock: p.stock_Qty, 
-            expiry: p.expiry_Date, 
-            img: p.img_Url, 
-            fav: p.Favorite === 1 ? 0 : 1 // Toggle favorite
-        };
-
-        // 3. Send update
-        await fetch(`http://localhost:3000/api/update-product/${id}`, { 
-            method: 'PUT', 
-            headers: {'Content-Type': 'application/json'}, 
-            body: JSON.stringify(updatedData) 
-        });
-
-        // 4. Refresh the UI specifically
-        await refreshProductsUI();
-        if (globalActiveCategoryName) {
-            openCategorySubSection(globalActiveCategoryName); 
-        }
-    } catch (e) {
-        console.error("Toggle Favorite Failed:", e);
-    }
+function toggleFav(id) {
+    alert("⭐ Top Sellers / Favorites are automatically ranked and awarded by the system based on customer purchase history.");
 }
 
-// --- NEW WORKER: SUBMIT NEW CUSTOMER CREDIT FOLDER ---
 document.getElementById('folderForm')?.addEventListener('submit', async (e) => {
     e.preventDefault(); // Blocks browser redirection loops
 
