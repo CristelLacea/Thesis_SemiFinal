@@ -2495,7 +2495,7 @@ async function generateReportEngine() {
             const filteredSales = allSales.filter(sale => {
                 const saleDate = new Date(sale.sale_date);
                 return saleDate >= startDate && saleDate <= endDate;
-            });
+            }).sort((a, b) => new Date(a.sale_date) - new Date(b.sale_date));
 
             const itemMap = {};
             filteredSales.forEach(sale => {
@@ -2513,11 +2513,32 @@ async function generateReportEngine() {
                     const cost = parseFloat(i.cost) || 0;
 
                     if (!itemMap[name]) {
-                        itemMap[name] = { qty: 0, gross: 0, profit: 0, price: price, cost: cost };
+                        itemMap[name] = { 
+                            qty: 0, 
+                            gross: 0, 
+                            profit: 0, 
+                            priceTiers: {} 
+                        };
                     }
+
+                    // Group by exact unit price tier
+                    const tierKey = price.toFixed(2);
+                    if (!itemMap[name].priceTiers[tierKey]) {
+                        itemMap[name].priceTiers[tierKey] = {
+                            price: price,
+                            cost: cost,
+                            qty: 0,
+                            gross: 0,
+                            profit: 0,
+                            firstDate: sale.sale_date
+                        };
+                    }
+
+                    itemMap[name].priceTiers[tierKey].qty += qty;
+                    itemMap[name].priceTiers[tierKey].gross += (price * qty);
+                    itemMap[name].priceTiers[tierKey].profit += ((price - cost) * qty);
+
                     itemMap[name].qty += qty;
-                    if (itemMap[name].price === 0 && price > 0) itemMap[name].price = price;
-                    if (itemMap[name].cost === 0 && cost > 0) itemMap[name].cost = cost;
                     itemMap[name].gross += (price * qty);
                     itemMap[name].profit += ((price - cost) * qty);
                 });
@@ -2525,18 +2546,38 @@ async function generateReportEngine() {
 
             Object.keys(itemMap).forEach(name => {
                 const p = dbProducts.find(prod => prod.prod_name === name);
-                if (p) {
-                    const price = p.orig_price + p.price_capital;
-                    const cost = p.orig_price;
-                    if (itemMap[name].price === 0) {
-                        itemMap[name].price = price;
-                        itemMap[name].gross = price * itemMap[name].qty;
+                const defaultPrice = p ? (parseFloat(p.orig_price) + parseFloat(p.price_capital)) : 0;
+                const defaultCost = p ? parseFloat(p.orig_price) : 0;
+
+                const tierKeys = Object.keys(itemMap[name].priceTiers);
+                tierKeys.forEach(key => {
+                    const tier = itemMap[name].priceTiers[key];
+                    if (tier.price === 0 && defaultPrice > 0) {
+                        tier.price = defaultPrice;
+                        tier.gross = tier.price * tier.qty;
                     }
-                    if (itemMap[name].cost === 0) {
-                        itemMap[name].cost = cost;
-                        itemMap[name].profit = (price - cost) * itemMap[name].qty;
+                    if (tier.cost === 0 && defaultCost > 0) {
+                        tier.cost = defaultCost;
+                        tier.profit = (tier.price - tier.cost) * tier.qty;
                     }
+                });
+
+                if (tierKeys.length === 0) {
+                    itemMap[name].priceTiers[defaultPrice.toFixed(2)] = {
+                        price: defaultPrice,
+                        cost: defaultCost,
+                        qty: itemMap[name].qty,
+                        gross: defaultPrice * itemMap[name].qty,
+                        profit: (defaultPrice - defaultCost) * itemMap[name].qty,
+                        firstDate: null
+                    };
                 }
+
+                // Recalculate summary from verified price tiers for absolute math integrity
+                const tiers = Object.values(itemMap[name].priceTiers);
+                itemMap[name].qty = tiers.reduce((acc, t) => acc + t.qty, 0);
+                itemMap[name].gross = tiers.reduce((acc, t) => acc + t.gross, 0);
+                itemMap[name].profit = tiers.reduce((acc, t) => acc + t.profit, 0);
             });
 
             let tableHtml = '';
@@ -2550,15 +2591,77 @@ async function generateReportEngine() {
                 totalGross += data.gross;
                 totalProfit += data.profit;
 
-                tableHtml += `
-                    <tr style="border-bottom: 1px solid #e2e8f0;">
-                        <td style="padding: 12px 5px; font-weight: 600; color: #1e293b;">${name}</td>
-                        <td style="padding: 12px 5px; text-align: center; font-weight: 700;">${data.qty} pcs</td>
-                        <td style="padding: 12px 5px; text-align: right; color: #475569;">₱${data.price.toFixed(2)}</td>
-                        <td style="padding: 12px 5px; text-align: right; font-weight: 800; color: #0f172a;">₱${data.gross.toFixed(2)}</td>
-                        <td style="padding: 12px 5px; text-align: right; font-weight: 800; color: #10b981;">₱${data.profit.toFixed(2)}</td>
-                    </tr>
-                `;
+                // Sort tiers chronologically by earliest purchase date, then by price
+                const tiers = Object.values(data.priceTiers).sort((a, b) => {
+                    if (a.firstDate && b.firstDate) {
+                        const diff = new Date(a.firstDate) - new Date(b.firstDate);
+                        if (diff !== 0) return diff;
+                    }
+                    return a.price - b.price;
+                });
+
+                if (tiers.length <= 1) {
+                    // Standard clean row for items sold at a single consistent price
+                    const singleTier = tiers[0] || { price: 0 };
+                    tableHtml += `
+                        <tr style="border-bottom: 1px solid #e2e8f0;">
+                            <td style="padding: 12px 5px; font-weight: 600; color: #1e293b;">${name}</td>
+                            <td style="padding: 12px 5px; text-align: center; font-weight: 700; color: #334155;">${data.qty} pcs</td>
+                            <td style="padding: 12px 5px; text-align: right; color: #475569;">₱${singleTier.price.toFixed(2)}</td>
+                            <td style="padding: 12px 5px; text-align: right; font-weight: 800; color: #0f172a;">₱${data.gross.toFixed(2)}</td>
+                            <td style="padding: 12px 5px; text-align: right; font-weight: 800; color: #10b981;">₱${data.profit.toFixed(2)}</td>
+                        </tr>
+                    `;
+                } else {
+                    // Multi-price item: Master row with badge + indented sub-rows for each price tier
+                    const minP = Math.min(...tiers.map(t => t.price));
+                    const maxP = Math.max(...tiers.map(t => t.price));
+
+                    tableHtml += `
+                        <tr style="border-bottom: 1px dashed #cbd5e1; background: #fafbfc;">
+                            <td style="padding: 11px 5px; font-weight: 700; color: #0f172a;">
+                                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                    <span>${name}</span>
+                                    <span style="display: inline-flex; align-items: center; gap: 4px; font-size: 0.68rem; font-weight: 700; background: #fef3c7; color: #b45309; padding: 2px 7px; border-radius: 4px; border: 1px solid #fde68a;" title="Sold at ${tiers.length} different price rates during this period">
+                                        <i class="fa-solid fa-tags" style="font-size: 0.65rem;"></i> Price Adjusted (${tiers.length} rates)
+                                    </span>
+                                </div>
+                            </td>
+                            <td style="padding: 11px 5px; text-align: center; font-weight: 800; color: #0f172a;">${data.qty} pcs</td>
+                            <td style="padding: 11px 5px; text-align: right; font-weight: 700; color: #64748b; font-size: 0.8rem;" title="Price range during this period">
+                                ₱${minP.toFixed(2)} – ₱${maxP.toFixed(2)}
+                            </td>
+                            <td style="padding: 11px 5px; text-align: right; font-weight: 800; color: #0f172a;">₱${data.gross.toFixed(2)}</td>
+                            <td style="padding: 11px 5px; text-align: right; font-weight: 800; color: #10b981;">₱${data.profit.toFixed(2)}</td>
+                        </tr>
+                    `;
+
+                    tiers.forEach((tier, idx) => {
+                        let tierBadge = '';
+                        if (tiers.length === 2) {
+                            tierBadge = idx === 0
+                                ? `<span style="font-size: 0.68rem; color: #64748b; background: #f1f5f9; padding: 1px 6px; border-radius: 4px; margin-left: 6px; border: 1px solid #e2e8f0; font-weight: 600;">Previous Price</span>`
+                                : `<span style="font-size: 0.68rem; color: #0369a1; background: #e0f2fe; padding: 1px 6px; border-radius: 4px; margin-left: 6px; border: 1px solid #bae6fd; font-weight: 600;">Updated Price</span>`;
+                        } else {
+                            tierBadge = `<span style="font-size: 0.68rem; color: #475569; background: #f1f5f9; padding: 1px 6px; border-radius: 4px; margin-left: 6px; border: 1px solid #e2e8f0; font-weight: 600;">Rate #${idx + 1}</span>`;
+                        }
+
+                        const isLastTier = idx === tiers.length - 1;
+                        tableHtml += `
+                            <tr style="border-bottom: ${isLastTier ? '1px solid #e2e8f0' : '1px dashed #f1f5f9'}; background: #f8fafc;">
+                                <td style="padding: 6px 5px 6px 28px; color: #475569; font-size: 0.82rem;">
+                                    <span style="color: #94a3b8; font-weight: 700; margin-right: 6px;">↳</span>
+                                    <span>Sold @ <strong style="color: #1e293b;">₱${tier.price.toFixed(2)}</strong></span>
+                                    ${tierBadge}
+                                </td>
+                                <td style="padding: 6px 5px; text-align: center; font-size: 0.82rem; color: #475569; font-weight: 600;">${tier.qty} pcs</td>
+                                <td style="padding: 6px 5px; text-align: right; font-size: 0.82rem; color: #64748b;">₱${tier.price.toFixed(2)}</td>
+                                <td style="padding: 6px 5px; text-align: right; font-size: 0.82rem; font-weight: 700; color: #334155;">₱${tier.gross.toFixed(2)}</td>
+                                <td style="padding: 6px 5px; text-align: right; font-size: 0.82rem; font-weight: 700; color: #059669;">₱${tier.profit.toFixed(2)}</td>
+                            </tr>
+                        `;
+                    });
+                }
             });
 
             if (tableHtml === '') {

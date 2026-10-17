@@ -58,7 +58,8 @@ CREATE TABLE IF NOT EXISTS utang_customers (
     fullname VARCHAR(255) NOT NULL UNIQUE,
     contact_number VARCHAR(50) DEFAULT NULL,
     address TEXT DEFAULT NULL,
-    folder_status VARCHAR(20) DEFAULT 'ACTIVE'
+    folder_status VARCHAR(20) DEFAULT 'ACTIVE',
+    credit_limit DECIMAL(10,2) DEFAULT 2000.00
 );
 
 -- 6. Create USERS table
@@ -72,7 +73,9 @@ CREATE TABLE IF NOT EXISTS users (
     address TEXT DEFAULT '',
     password VARCHAR(255) NOT NULL,
     role VARCHAR(50) NOT NULL,
-    account_state VARCHAR(20) DEFAULT 'NORMAL'
+    account_state VARCHAR(20) DEFAULT 'NORMAL',
+    is_online BOOLEAN DEFAULT FALSE,
+    last_active TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 `;
 
