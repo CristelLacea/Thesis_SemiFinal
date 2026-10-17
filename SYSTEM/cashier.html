@@ -28,46 +28,122 @@
                 </div>
         </main>
 
-        <aside class="order-summary" style="width: 400px; padding: 25px; background: white; border-left: 1px solid #e2e8f0; display: flex; flex-direction: column; justify-content: center;">
-            <h3 style="margin-bottom: 15px; color: #1d2b38; font-weight: 800;">Billing Overview</h3>
-            
-            <div class="billing-area">
-                <div class="bill-line total">
-                    <span>Total Amount</span>
-                    <span id="totalPrice">₱0.00</span>
+    <aside class="order-summary" style="width: 400px; padding: 15px; background: white; border-left: 1px solid #e2e8f0; display: flex; flex-direction: column; justify-content: flex-start; height: 100vh; overflow: hidden; box-sizing: border-box;">
+        <div style="margin-bottom: 10px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 8px; width: 100%;">
+            <h3 style="margin: 0; color: #1d2b38; font-weight: 800; font-size: 1.15rem;">Billing Overview</h3>
+        </div>
+        
+        <div class="billing-area" style="display: flex; flex-direction: column; gap: 8px; width: 100%;">
+            <!-- 1. Live Receipt Preview Box (At the Top first) -->
+            <div class="live-receipt-box" style="background: #f8fafc; border: 1px dashed #cbd5e1; padding: 10px 12px; border-radius: 10px; font-family: 'Courier New', Courier, monospace; color: #1e293b; font-size: 11px; line-height: 1.4; text-align: left; box-shadow: inset 0 2px 8px rgba(0,0,0,0.03); max-height: 110px; overflow-y: auto;">
+                <div style="font-weight: bold; text-align: center; font-size: 11px; margin-bottom: 1px;">WELJO'S STORE</div>
+                <div style="text-align: center; font-size: 8px; color: #64748b; margin-bottom: 3px;">Balilihan, Bohol, Philippines</div>
+                <div style="text-align: center; margin: 1px 0;">--------------------------------</div>
+                
+                <div id="liveReceiptItems" style="margin: 3px 0;">
+                    <div style="text-align: center; color: #94a3b8; font-style: italic;">No items in cart</div>
                 </div>
                 
-                <div class="payment-section">
-                    <div class="payment-input">
-                        <label>Cash Received:</label>
-                        <!-- Disable mobile keyboard popup but allow focus and physical/numpad inputs -->
-                        <input type="text" id="cashReceived" placeholder="0.00" inputmode="none">
-                    </div>
-
-                    <div class="numpad">
-                        <button onclick="pressNum('7')">7</button>
-                        <button onclick="pressNum('8')">8</button>
-                        <button onclick="pressNum('9')">9</button>
-                        <button onclick="pressNum('4')">4</button>
-                        <button onclick="pressNum('5')">5</button>
-                        <button onclick="pressNum('6')">6</button>
-                        <button onclick="pressNum('1')">1</button>
-                        <button onclick="pressNum('2')">2</button>
-                        <button onclick="pressNum('3')">3</button>
-                        <button onclick="pressNum('0')">0</button>
-                        <button onclick="pressNum('.')">.</button>
-                        <button class="clear-btn" onclick="pressNum('C')">C</button>
-                    </div>
+                <div style="text-align: center; margin: 1px 0;">--------------------------------</div>
+                <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 11px; margin: 2px 0;">
+                    <span>TOTAL AMOUNT:</span>
+                    <span>₱<span id="totalPrice" data-raw-total="0">0.00</span></span>
                 </div>
-
-                <div class="bill-line change-row">
-                    <span>Change:</span>
-                    <span id="changeAmount" class="large-change">₱0.00</span>
+                <div style="display: flex; justify-content: space-between; margin: 1px 0;">
+                    <span>CASH TENDERED:</span>
+                    <span id="liveReceiptCash">₱0.00</span>
                 </div>
-                <button class="confirm-btn" onclick="processTransaction()">Confirm Transaction</button>
+                <div style="display: flex; justify-content: space-between; margin: 1px 0; font-weight: bold;">
+                    <span>CHANGE DUE:</span>
+                    <span>₱<span id="changeAmount">0.00</span></span>
+                </div>
+                <div style="text-align: center; margin: 1px 0;">--------------------------------</div>
+                <div style="text-align: center; font-size: 8px; color: #64748b; margin-top: 3px;">
+                    * LIVE RECEIPT PREVIEW *
+                </div>
             </div>
-        </aside>
+
+            <!-- 2. Premium Total Display Card (Below Receipt) -->
+            <div style="background: #1d2b38; color: white; padding: 12px 15px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; box-shadow: 0 4px 10px rgba(29,43,56,0.1); width: 100%; box-sizing: border-box;">
+                <span style="font-weight: 700; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.5px; opacity: 0.8;"><i class="fa-solid fa-calculator"></i> Total Amount</span>
+                <span id="sidebarTotalDisplay" style="font-size: 1.6rem; font-weight: 900; color: #ff7675;">₱0.00</span>
+            </div>
+
+            <!-- 3. Change Due and Cash Received Display -->
+            <div class="payment-section" style="margin: 0;">
+                <div style="margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 2px 0;">
+                    <label style="font-weight: 700; color: #475569; font-size: 0.8rem; text-transform: uppercase; white-space: nowrap; margin: 0;">Change Due:</label>
+                    <div style="font-size: 1.4rem; font-weight: 900; color: #10b981; line-height: 1;" id="sidebarChangeDisplay">₱0.00</div>
+                </div>
+
+                <div class="payment-input" style="margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; gap: 10px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 6px;">
+                    <label style="font-weight: 700; color: #475569; font-size: 0.8rem; text-transform: uppercase; white-space: nowrap; margin: 0;">Cash Received:</label>
+                    <input type="text" id="cashReceived" placeholder="0.00" inputmode="none" style="width: 120px; padding: 6px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 1rem; font-weight: bold; text-align: right; margin: 0; outline: none;">
+                </div>
+                
+                <!-- Active Item Multiplier Indicator / Target Card -->
+                <div id="itemMultiplierBanner" style="display: none; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 6px 10px; margin-bottom: 8px; font-size: 0.78rem; color: #1e40af; align-items: center; justify-content: space-between; transition: all 0.2s;">
+                    <div style="display: flex; align-items: center; gap: 6px; overflow: hidden; max-width: 75%;">
+                        <i class="fa-solid fa-calculator" style="color: #2563eb;"></i>
+                        <span id="multiplierTargetText" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600;">Selected: None</span>
+                    </div>
+                    <span id="multiplierBadge" style="background: #2563eb; color: white; padding: 2px 7px; border-radius: 4px; font-weight: 800; font-size: 0.72rem; white-space: nowrap;">× 1</span>
+                </div>
+
+                <div class="numpad" style="gap: 6px;">
+                    <button type="button" onclick="pressNum('7')" style="padding: 10px; font-size: 1.05rem; border-radius: 8px;">7</button>
+                    <button type="button" onclick="pressNum('8')" style="padding: 10px; font-size: 1.05rem; border-radius: 8px;">8</button>
+                    <button type="button" onclick="pressNum('9')" style="padding: 10px; font-size: 1.05rem; border-radius: 8px;">9</button>
+                    <button type="button" onclick="pressNum('4')" style="padding: 10px; font-size: 1.05rem; border-radius: 8px;">4</button>
+                    <button type="button" onclick="pressNum('5')" style="padding: 10px; font-size: 1.05rem; border-radius: 8px;">5</button>
+                    <button type="button" onclick="pressNum('6')" style="padding: 10px; font-size: 1.05rem; border-radius: 8px;">6</button>
+                    <button type="button" onclick="pressNum('1')" style="padding: 10px; font-size: 1.05rem; border-radius: 8px;">1</button>
+                    <button type="button" onclick="pressNum('2')" style="padding: 10px; font-size: 1.05rem; border-radius: 8px;">2</button>
+                    <button type="button" onclick="pressNum('3')" style="padding: 10px; font-size: 1.05rem; border-radius: 8px;">3</button>
+                    <button type="button" onclick="pressNum('0')" style="padding: 10px; font-size: 1.05rem; border-radius: 8px;">0</button>
+                    <button type="button" onclick="pressNum('.')" style="padding: 10px; font-size: 1.05rem; border-radius: 8px;">.</button>
+                    <button type="button" class="clear-btn" onclick="pressNum('C')" style="padding: 10px; font-size: 1.05rem; border-radius: 8px;">C</button>
+                    <button type="button" id="btnMultiplyQty" onclick="applyMultiplier()" style="grid-column: span 3; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; border: none; padding: 9px; border-radius: 8px; font-weight: 800; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 2px 6px rgba(37,99,235,0.25); transition: all 0.2s;">
+                        <i class="fa-solid fa-xmark" style="font-size: 0.95rem;"></i> Multiply Item Qty (× Qty)
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Checkout Mode Toggle -->
+            <div class="checkout-mode-selector" style="display: flex; background: #f1f5f9; padding: 3px; border-radius: 8px; margin-bottom: 2px; border: 1px solid #e2e8f0; margin-top: 4px;">
+                <button type="button" id="modeQuick" onclick="setCheckoutMode('quick')" style="flex: 1; border: none; background: #1d2b38; color: white; padding: 6px; border-radius: 6px; font-weight: 700; font-size: 0.75rem; cursor: pointer; transition: all 0.2s;">Quick Save</button>
+                <button type="button" id="modeReceipt" onclick="setCheckoutMode('receipt')" style="flex: 1; border: none; background: transparent; color: #64748b; padding: 6px; border-radius: 6px; font-weight: 700; font-size: 0.75rem; cursor: pointer; transition: all 0.2s;">With Receipt</button>
+            </div>
+            
+            <button class="confirm-btn" id="confirmBtn" onclick="processTransaction()" style="margin: 0; width: 100%; padding: 12px; font-size: 1rem; border-radius: 8px; font-weight: 700; transition: all 0.2s; background: #10b981;">Confirm & Save (No Print)</button>
+        </div>
+    </aside>
     </div>
-    <script src="cashier.js"></script>
+
+<!-- RECEIPT PREVIEW MODAL -->
+<div id="receiptPreviewModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content" style="max-width: 420px; border-top: 5px solid #10b981; padding: 20px;">
+        <h3 style="margin-top: 0; display: flex; align-items: center; gap: 8px; color: #1e293b; font-weight: 800;">
+            <i class="fa-solid fa-receipt" style="color: #10b981;"></i> Transaction Receipt
+        </h3>
+        <p style="color: #64748b; font-size: 0.85rem; margin-bottom: 20px; text-align: left;">
+            Transaction recorded successfully. You can preview the receipt below before printing.
+        </p>
+        
+        <!-- Virtual Thermal Receipt Container -->
+        <div class="virtual-receipt-box" style="background: #f8fafc; border: 1px dashed #cbd5e1; padding: 15px; border-radius: 8px; max-height: 380px; overflow-y: auto; font-family: 'Courier New', Courier, monospace; color: #1e293b; font-size: 12px; line-height: 1.4; text-align: left; box-shadow: inset 0 2px 8px rgba(0,0,0,0.03); margin-bottom: 20px;">
+            <div id="receiptPreviewContent"></div>
+        </div>
+        
+        <div class="modal-actions" style="margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end;">
+            <button type="button" class="cancel-btn" onclick="closeReceiptPreviewModal()" style="margin: 0; flex: 1; padding: 12px; font-weight: 700; border-radius: 8px;">Close</button>
+            <button type="button" onclick="printReceiptFromPreview()" class="save-btn" style="margin: 0; flex: 1; background: #10b981; padding: 12px; font-weight: 700; border-radius: 8px; color: white; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: background 0.2s;">
+                <i class="fa-solid fa-print"></i> Print Receipt
+            </button>
+        </div>
+    </div>
+</div>
+
+<script src="cashier.js"></script>
 </body>
 </html>

@@ -14,6 +14,8 @@ window.fetch = function (url, options = {}) {
 // --- 1. INITIALIZATION & DATA SETUP ---
 let products = []; 
 let cart = [];
+let selectedCartItemId = null;
+let pendingScanMultiplier = 1;
 let scannerStrokeBuffer = "";
 let lastStrokeTimestamp = Date.now();
 let scanStartTime = null; // Tracks when the current scan burst started
@@ -29,28 +31,43 @@ async function loadProductsFromDB() {
 }
 
 // --- 3. CORE CHECKOUT & CART ENGINE ---
-function addToCart(id) {
+function addToCart(id, customQty = null) {
     const prod = products.find(p => p.prod_id === id);
     if (!prod || prod.stock_Qty <= 0) return alert("Out of Stock!");
+    
+    let qtyToAdd = customQty !== null ? customQty : (pendingScanMultiplier > 1 ? pendingScanMultiplier : 1);
+    pendingScanMultiplier = 1; // Reset prefix multiplier after consumption
     
     const itemInCart = cart.find(c => c.prod_id === id);
     const salePrice = prod.orig_price + prod.price_capital;
 
     if (itemInCart) {
-        if (itemInCart.qty < prod.stock_Qty) {
-            itemInCart.qty++;
+        if (itemInCart.qty + qtyToAdd <= prod.stock_Qty) {
+            itemInCart.qty += qtyToAdd;
         } else {
-            alert("Maximum stock reached!");
+            const remainingAllowed = prod.stock_Qty - itemInCart.qty;
+            if (remainingAllowed > 0) {
+                itemInCart.qty = prod.stock_Qty;
+                alert(`Stock Limit: Only ${remainingAllowed} more unit(s) available. Quantity set to max stock (${prod.stock_Qty}).`);
+            } else {
+                alert("Maximum stock reached!");
+            }
         }
     } else {
+        if (qtyToAdd > prod.stock_Qty) {
+            alert(`Stock Limit: Requested ${qtyToAdd} exceeds available stock (${prod.stock_Qty}). Set to ${prod.stock_Qty}.`);
+            qtyToAdd = prod.stock_Qty;
+        }
         cart.push({ 
             prod_id: prod.prod_id, 
             prod_name: prod.prod_name, 
             price: salePrice, 
             orig_price: prod.orig_price, 
-            qty: 1 
+            qty: qtyToAdd 
         });
     }
+
+    selectedCartItemId = id;
 
     // 🟢 FORCE UI REFRESH
     // Ensure the scanner panel is removed and the table is injected
@@ -61,6 +78,127 @@ function addToCart(id) {
     if (scannerPanel && cart.length > 0) {
         scannerPanel.style.display = 'none';
     }
+}
+
+function selectCartItem(id) {
+    selectedCartItemId = id;
+    updateCartUI();
+}
+
+function promptItemQty(id) {
+    const item = cart.find(c => c.prod_id === id);
+    const prod = products.find(p => p.prod_id === id);
+    if (!item || !prod) return;
+    
+    const input = prompt(`Enter quantity for "${prod.prod_name}" (Current: ${item.qty}, Available Stock: ${prod.stock_Qty}):`, item.qty);
+    if (input === null) return;
+    
+    const newQty = parseInt(input.trim(), 10);
+    if (isNaN(newQty) || newQty <= 0) {
+        alert("Validation Error: Quantity must be a positive whole number.");
+        return;
+    }
+    
+    if (newQty > prod.stock_Qty) {
+        alert(`Stock Limit: Only ${prod.stock_Qty} available in stock! Setting quantity to ${prod.stock_Qty}.`);
+        item.qty = prod.stock_Qty;
+    } else {
+        item.qty = newQty;
+    }
+    
+    selectedCartItemId = id;
+    updateCartUI();
+}
+
+function applyMultiplier() {
+    const cashInput = document.getElementById('cashReceived');
+    let enteredVal = parseInt(cashInput?.value, 10);
+
+    // If nothing typed on the numpad, prompt directly
+    if (isNaN(enteredVal) || enteredVal <= 0) {
+        const targetItem = cart.find(c => c.prod_id === selectedCartItemId) || (cart.length > 0 ? cart[cart.length - 1] : null);
+        const defaultVal = targetItem ? targetItem.qty : 2;
+        const targetName = targetItem ? `"${targetItem.prod_name}"` : "selected item";
+        
+        const userInput = prompt(`Enter quantity multiplier for ${targetName}:`, defaultVal);
+        if (userInput === null) return;
+        enteredVal = parseInt(userInput.trim(), 10);
+        if (isNaN(enteredVal) || enteredVal <= 0) {
+            alert("Validation Error: Multiplier must be a positive number of at least 1.");
+            return;
+        }
+    }
+
+    // Case 1: An item is in the cart
+    if (cart.length > 0) {
+        if (!selectedCartItemId || !cart.some(c => c.prod_id === selectedCartItemId)) {
+            selectedCartItemId = cart[cart.length - 1].prod_id;
+        }
+        
+        const item = cart.find(c => c.prod_id === selectedCartItemId);
+        const prod = products.find(p => p.prod_id === selectedCartItemId);
+        
+        if (item && prod) {
+            if (enteredVal > prod.stock_Qty) {
+                alert(`Stock Limit: Only ${prod.stock_Qty} available in stock! Setting quantity to ${prod.stock_Qty}.`);
+                item.qty = prod.stock_Qty;
+            } else {
+                item.qty = enteredVal;
+            }
+            
+            // Wipe cash input and recalculate change
+            if (cashInput) {
+                cashInput.value = '';
+                calculateChange();
+            }
+            
+            updateCartUI();
+            return;
+        }
+    }
+
+    // Case 2: Cart is empty - Set Prefix Multiplier for next barcode scan
+    pendingScanMultiplier = enteredVal;
+    if (cashInput) {
+        cashInput.value = '';
+        calculateChange();
+    }
+    updateMultiplierBanner();
+    alert(`Prefix Multiplier Set: Next barcode scan will ring up × ${enteredVal} pcs!`);
+}
+
+function updateMultiplierBanner() {
+    const banner = document.getElementById('itemMultiplierBanner');
+    const textSpan = document.getElementById('multiplierTargetText');
+    const badge = document.getElementById('multiplierBadge');
+    if (!banner || !textSpan || !badge) return;
+
+    if (cart.length === 0) {
+        if (pendingScanMultiplier > 1) {
+            banner.style.display = 'flex';
+            banner.style.background = '#fffbeb';
+            banner.style.borderColor = '#fde68a';
+            textSpan.innerHTML = `<span style="color: #b45309; font-weight: 700;"><i class="fa-solid fa-barcode"></i> Next Scan Multiplier:</span>`;
+            badge.innerText = `× ${pendingScanMultiplier}`;
+            badge.style.background = '#d97706';
+        } else {
+            banner.style.display = 'none';
+        }
+        return;
+    }
+
+    // Cart has items
+    banner.style.display = 'flex';
+    banner.style.background = '#eff6ff';
+    banner.style.borderColor = '#bfdbfe';
+
+    const item = cart.find(c => c.prod_id === selectedCartItemId) || cart[cart.length - 1];
+    const prod = item ? products.find(p => p.prod_id === item.prod_id) : null;
+    const stockInfo = prod ? `(Stock: ${prod.stock_Qty})` : '';
+
+    textSpan.innerHTML = `<span style="color: #1e40af; font-weight: 700;">Selected:</span> <strong>${item ? item.prod_name : 'Item'}</strong> <span style="color:#64748b; font-size:0.7rem;">${stockInfo}</span>`;
+    badge.innerText = `× ${item ? item.qty : 1}`;
+    badge.style.background = '#2563eb';
 }
 
 function changeQty(id, delta) {
@@ -78,6 +216,7 @@ function changeQty(id, delta) {
             cart = cart.filter(c => c.prod_id !== id);
         }
     }
+    selectedCartItemId = cart.some(c => c.prod_id === id) ? id : (cart.length > 0 ? cart[cart.length - 1].prod_id : null);
     updateCartUI();
 }
 
@@ -91,6 +230,7 @@ function updateCartUI() {
 
     // A. Cart is empty -> show the modern grocery status template
     if (cart.length === 0) {
+        selectedCartItemId = null;
         list.innerHTML = `
             <div class="scanner-status-panel" style="flex: 1; background: linear-gradient(135deg, #1d2b38, #111a22); border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; text-align: center; padding: 40px; height: 100%;">
                 <div class="barcode-laser-icon" style="font-size: 4.5rem; color: #ff7675; margin-bottom: 15px; text-shadow: 0 0 15px rgba(255,118,117,0.4);">
@@ -118,7 +258,12 @@ function updateCartUI() {
         if (cashContainer) {
             cashContainer.innerText = `₱0.00`;
         }
+        updateMultiplierBanner();
         return;
+    }
+
+    if (!selectedCartItemId || !cart.some(c => c.prod_id === selectedCartItemId)) {
+        selectedCartItemId = cart[cart.length - 1].prod_id;
     }
 
     // B. Cart has active rows -> compile clean item subtotal rows natively
@@ -138,19 +283,24 @@ function updateCartUI() {
     cart.forEach(item => {
         const itemSubtotal = item.price * item.qty;
         grandTotal += itemSubtotal;
+        const isSelected = item.prod_id === selectedCartItemId;
         
         itemsHTML += `
-            <tr style="border-bottom: 1px solid #f1f5f9; font-size: 1rem; color: #1e293b;">
-                <td style="padding: 15px; font-weight: 600;">${item.prod_name}</td>
-                <td style="padding: 15px; text-align: center; color: #64748b;">₱${item.price.toFixed(2)}</td>
-                <td style="padding: 15px; text-align: center;">
-                    <div style="display: inline-flex; align-items: center; gap: 8px; background: #f1f5f9; padding: 4px 8px; border-radius: 8px;">
-                        <button onclick="changeQty(${item.prod_id}, -1)" style="border: none; background: none; font-weight: bold; cursor: pointer; padding: 0 5px; color: #64748b;">-</button>
-                        <span style="font-weight: bold; min-width: 20px; text-align: center;">${item.qty}</span>
-                        <button onclick="changeQty(${item.prod_id}, 1)" style="border: none; background: none; font-weight: bold; cursor: pointer; padding: 0 5px; color: #64748b;">+</button>
+            <tr onclick="selectCartItem(${item.prod_id})" 
+                style="border-bottom: 1px solid #f1f5f9; font-size: 0.95rem; color: #1e293b; cursor: pointer; transition: background 0.15s; ${isSelected ? 'background: #eff6ff; border-left: 4px solid #2563eb;' : ''}">
+                <td style="padding: 14px 15px; font-weight: 600;">
+                    ${item.prod_name}
+                    ${isSelected ? '<span style="font-size: 0.65rem; background: #2563eb; color: white; padding: 2px 6px; border-radius: 4px; font-weight: 800; margin-left: 6px; text-transform: uppercase; letter-spacing: 0.5px;">Active</span>' : ''}
+                </td>
+                <td style="padding: 14px 15px; text-align: center; color: #64748b;">₱${item.price.toFixed(2)}</td>
+                <td style="padding: 14px 15px; text-align: center;" onclick="event.stopPropagation()">
+                    <div style="display: inline-flex; align-items: center; gap: 6px; background: #f1f5f9; padding: 3px 6px; border-radius: 8px;">
+                        <button type="button" onclick="changeQty(${item.prod_id}, -1)" style="border: none; background: none; font-weight: bold; cursor: pointer; padding: 0 6px; color: #64748b; font-size: 1rem;">-</button>
+                        <span onclick="promptItemQty(${item.prod_id})" title="Click to edit quantity directly" style="font-weight: 800; min-width: 28px; text-align: center; cursor: pointer; padding: 2px 6px; border-radius: 4px; background: white; border: 1px solid #cbd5e1; font-size: 0.9rem; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">${item.qty}</span>
+                        <button type="button" onclick="changeQty(${item.prod_id}, 1)" style="border: none; background: none; font-weight: bold; cursor: pointer; padding: 0 6px; color: #64748b; font-size: 1rem;">+</button>
                     </div>
                 </td>
-                <td style="padding: 15px; text-align: right; font-weight: 700; color: #1d2b38;">₱${itemSubtotal.toFixed(2)}</td>
+                <td style="padding: 14px 15px; text-align: right; font-weight: 700; color: #1d2b38;">₱${itemSubtotal.toFixed(2)}</td>
             </tr>`;
     });
 
@@ -178,6 +328,7 @@ function updateCartUI() {
         `).join('');
     }
 
+    updateMultiplierBanner();
     calculateChange();
 }
 
@@ -531,6 +682,8 @@ async function processTransaction() {
 
         // Clear cart immediately and reload products from DB to record inventory
         cart = [];
+        selectedCartItemId = null;
+        pendingScanMultiplier = 1;
         document.getElementById('cashReceived').value = '';
         await loadProductsFromDB();
         updateCartUI();
