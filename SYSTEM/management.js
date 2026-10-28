@@ -3189,10 +3189,18 @@ async function generateReportEngine() {
             const selectedCategory = document.getElementById('reportCategoryFilter')?.value || 'ALL';
 
             const docTitle = document.getElementById('reportDocumentTitle');
+            const docSubtitle = document.getElementById('reportDocumentSubtitle');
             if (docTitle) {
-                docTitle.innerText = selectedCategory === 'ALL' 
-                    ? "Sales Performance Report" 
-                    : `Sales Performance Report: ${selectedCategory}`;
+                docTitle.innerText = "Sales Performance Report";
+            }
+            if (docSubtitle) {
+                if (selectedCategory !== 'ALL') {
+                    docSubtitle.style.display = 'block';
+                    docSubtitle.innerHTML = `<span style="color: #64748b; font-size: 0.78rem; font-weight: 600; text-transform: uppercase;">Category:</span> <strong style="color: #0f172a; font-size: 0.9rem;">${selectedCategory}</strong>`;
+                } else {
+                    docSubtitle.style.display = 'none';
+                    docSubtitle.innerHTML = '';
+                }
             }
 
             tableHeader.innerHTML = `
@@ -3427,10 +3435,20 @@ async function generateReportEngine() {
             const isIndividual = selectedCreditor !== 'ALL';
 
             const docTitle = document.getElementById('reportDocumentTitle');
+            const docSubtitle = document.getElementById('reportDocumentSubtitle');
             if (docTitle) {
                 docTitle.innerText = isIndividual 
-                    ? `Statement of Account: ${selectedCreditor}` 
+                    ? "Statement of Account" 
                     : "Cash Collections Report";
+            }
+            if (docSubtitle) {
+                if (isIndividual) {
+                    docSubtitle.style.display = 'block';
+                    docSubtitle.innerHTML = `<span style="color: #64748b; font-size: 0.78rem; font-weight: 600; text-transform: uppercase;">Customer:</span> <strong style="color: #0f172a; font-size: 0.92rem;">${selectedCreditor}</strong>`;
+                } else {
+                    docSubtitle.style.display = 'none';
+                    docSubtitle.innerHTML = '';
+                }
             }
 
             // Immediately set table headers for collections so they are never left as sales headers

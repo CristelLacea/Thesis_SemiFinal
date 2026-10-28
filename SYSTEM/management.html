@@ -830,17 +830,18 @@
     <!-- Paper Report Preview Sheet Container -->
     <div id="printReportArea" class="paper-report-sheet" style="background: white; border: 1px solid #cbd5e1; box-shadow: 0 10px 30px rgba(0,0,0,0.05); padding: 50px; border-radius: 8px; max-width: 850px; margin: 0 auto; color: #1e293b; font-family: 'Segoe UI', system-ui, sans-serif;">
         <!-- Header Section -->
-        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 3px double #1e293b; padding-bottom: 20px; margin-bottom: 25px;">
-            <div style="display: flex; align-items: center;">
-                <img src="LOGONEWEST_BLACK.png" alt="Logo" style="height: 100px; width: auto; object-fit: contain; margin-right: 20px;">
-                <div style="border-left: 2px solid #cbd5e1; padding-left: 20px; height: 75px; display: flex; flex-direction: column; justify-content: center;">
-                    <p style="font-size: 0.82rem; color: #1e293b; margin: 0; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; line-height: 1.35;">Convenience & Retail POS<br>Management System</p>
-                    <p style="font-size: 0.82rem; color: #64748b; margin: 4px 0 0 0; font-weight: 500;">Del Carmen Norte, Balilihan, Bohol</p>
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 3px double #1e293b; padding-bottom: 18px; margin-bottom: 25px; gap: 20px;">
+            <div style="display: flex; align-items: center; flex-shrink: 0;">
+                <img src="LOGONEWEST_BLACK.png" alt="Logo" style="height: 85px; width: auto; object-fit: contain; margin-right: 18px;">
+                <div style="border-left: 2px solid #cbd5e1; padding-left: 18px; display: flex; flex-direction: column; justify-content: center;">
+                    <p style="font-size: 0.8rem; color: #1e293b; margin: 0; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; line-height: 1.35;">Convenience & Retail POS<br>Management System</p>
+                    <p style="font-size: 0.78rem; color: #64748b; margin: 4px 0 0 0; font-weight: 500;">Del Carmen Norte, Balilihan, Bohol</p>
                 </div>
             </div>
-            <div style="text-align: right; flex-shrink: 0; min-width: 320px; height: 75px; display: flex; flex-direction: column; justify-content: center; align-items: flex-end;">
-                <h2 id="reportDocumentTitle" style="font-size: 1.25rem; font-weight: 800; color: #1e293b; margin: 0; text-transform: uppercase; letter-spacing: 0.5px; line-height: 1.2;">Sales Performance Report</h2>
-                <p style="font-size: 0.8rem; color: #64748b; margin: 4px 0 0 0; font-weight: 500;"><strong>Period:</strong> <span id="reportPeriodText">July 1, 2026 - August 18, 2026</span></p>
+            <div style="text-align: right; display: flex; flex-direction: column; justify-content: center; align-items: flex-end; min-width: 260px; max-width: 55%;">
+                <h2 id="reportDocumentTitle" style="font-size: 1.2rem; font-weight: 800; color: #1e293b; margin: 0; text-transform: uppercase; letter-spacing: 0.5px; line-height: 1.2;">Sales Performance Report</h2>
+                <div id="reportDocumentSubtitle" style="display: none; font-size: 0.88rem; margin: 3px 0 1px 0; text-align: right;"></div>
+                <p style="font-size: 0.8rem; color: #64748b; margin: 3px 0 0 0; font-weight: 500;"><strong>Period:</strong> <span id="reportPeriodText">July 1, 2026 - August 18, 2026</span></p>
                 <p style="font-size: 0.8rem; color: #64748b; margin: 2px 0 0 0; font-weight: 500;"><strong>Generated:</strong> <span id="reportGenTime">8/18/2026, 6:32:04 PM</span></p>
             </div>
         </div>
