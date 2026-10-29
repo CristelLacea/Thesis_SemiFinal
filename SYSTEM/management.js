@@ -910,14 +910,14 @@ async function updateOverview() {
         const eList = document.getElementById('expiryList');
         if (eList) {
             eList.innerHTML = expiringItems.length > 0
-                ? expiringItems.map(p => `<li><span>${p.prod_name}</span> <span style="background:#fffbeb; color:#d97706; padding: 4px 8px; border-radius: 6px; font-size:0.75rem; font-weight:700;">Exp: ${new Date(p.expiry_Date).toLocaleDateString()}</span></li>`).join('')
+                ? expiringItems.map(p => `<li onclick="openBatchViewerModal(null, ${p.prod_id})" style="cursor: pointer; transition: background 0.15s;" title="Click to view delivery batches & expiration breakdown for ${p.prod_name}"><span style="font-weight: 600;">${p.prod_name}</span> <span style="background:#fffbeb; color:#d97706; padding: 4px 8px; border-radius: 6px; font-size:0.75rem; font-weight:700;">Exp: ${new Date(p.expiry_Date).toLocaleDateString()}</span></li>`).join('')
                 : '<li style="border-left-color: #10b981; color:#15803d; background: #f0fdf4;">No items expiring soon. 🥂</li>';
         }
 
         const expiredListEl = document.getElementById('expiredList');
         if (expiredListEl) {
             expiredListEl.innerHTML = expiredItems.length > 0
-                ? expiredItems.map(p => `<li><span>${p.prod_name}</span> <span style="background:#fee2e2; color:#b91c1c; padding: 4px 8px; border-radius: 6px; font-size:0.75rem; font-weight:700;">Expired</span></li>`).join('')
+                ? expiredItems.map(p => `<li onclick="openBatchViewerModal(null, ${p.prod_id})" style="cursor: pointer; transition: background 0.15s;" title="Click to view delivery batches & expiration breakdown for ${p.prod_name}"><span style="font-weight: 600;">${p.prod_name}</span> <span style="background:#fee2e2; color:#b91c1c; padding: 4px 8px; border-radius: 6px; font-size:0.75rem; font-weight:700;">Expired</span></li>`).join('')
                 : '<li style="border-left-color: #10b981; color:#15803d; background: #f0fdf4;">No expired products! 🎉</li>';
         }
     } catch (error) { 
@@ -3940,6 +3940,13 @@ function closeStockInModal() {
     const modal = document.getElementById('stockInModal');
     if (modal) modal.style.display = 'none';
     activeStockInProduct = null;
+}
+
+function viewBatchesFromStockIn() {
+    const prodId = parseInt(document.getElementById('stockInProdId')?.value);
+    if (!prodId) return;
+    closeStockInModal();
+    openBatchViewerModal(null, prodId);
 }
 
 function previewStockInTotal() {

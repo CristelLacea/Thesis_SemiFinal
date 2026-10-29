@@ -546,9 +546,14 @@
             <!-- Product Identity Card -->
             <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px 14px; margin-bottom: 16px; display: flex; align-items: center; gap: 12px;">
                 <img id="stockInProdImg" src="" style="width: 46px; height: 46px; object-fit: contain; border-radius: 8px; background: white; border: 1px solid #e2e8f0; flex-shrink: 0;">
-                <div style="min-width: 0;">
+                <div style="min-width: 0; flex: 1;">
                     <h4 id="stockInProdName" style="margin: 0 0 3px 0; font-size: 0.95rem; font-weight: 800; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Product Name</h4>
-                    <span style="font-size: 0.8rem; color: #64748b;">Current Stock: <strong id="stockInCurrentStock" style="color: #0f172a;">0</strong> units</span>
+                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                        <span style="font-size: 0.8rem; color: #64748b;">Current Stock: <strong id="stockInCurrentStock" style="color: #0f172a;">0</strong> units</span>
+                        <button type="button" onclick="viewBatchesFromStockIn()" style="background: none; border: none; color: #2563eb; font-size: 0.78rem; font-weight: 700; cursor: pointer; padding: 2px 6px; text-decoration: underline; display: flex; align-items: center; gap: 4px;">
+                            <i class="fa-solid fa-layer-group"></i> View Batches
+                        </button>
+                    </div>
                 </div>
             </div>
 
