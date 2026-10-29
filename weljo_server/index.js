@@ -145,16 +145,26 @@ app.put('/api/update-product/:id', async (req, res) => {
         const currentBatchTotal = parseInt(batchesRes.rows[0]?.total) || 0;
         let deductQty = currentBatchTotal - targetStock;
 
-        // Perform FEFO deduction across active batches
+        // Perform FEFO deduction across active batches (EXCLUDING expired batches)
         if (deductQty > 0) {
             const activeBatches = await db.query(`
-                SELECT batch_id, batch_qty 
+                SELECT batch_id, batch_qty, expiry_date 
                 FROM product_batches 
                 WHERE prod_id = $1 AND batch_qty > 0 
                 ORDER BY (expiry_date IS NULL), expiry_date ASC, batch_id ASC
             `, [prodId]);
 
-            for (const b of activeBatches.rows) {
+            const now = new Date();
+            const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+            // Only sell from valid, unexpired batches!
+            const sellableBatches = activeBatches.rows.filter(b => {
+                if (!b.expiry_date) return true;
+                const exp = new Date(b.expiry_date);
+                return isNaN(exp.getTime()) || exp >= todayStart;
+            });
+
+            for (const b of sellableBatches) {
                 if (deductQty <= 0) break;
                 if (b.batch_qty <= deductQty) {
                     deductQty -= b.batch_qty;
@@ -166,14 +176,22 @@ app.put('/api/update-product/:id', async (req, res) => {
             }
         }
 
-        // Recalculate nearest active expiry date from remaining batches
-        const nearestExpRes = await db.query(`
+        // Recalculate nearest active expiry date from remaining batches (prioritizing unexpired)
+        const allRemainingBatches = await db.query(`
             SELECT expiry_date 
             FROM product_batches 
             WHERE prod_id = $1 AND batch_qty > 0 AND expiry_date IS NOT NULL 
-            ORDER BY expiry_date ASC LIMIT 1
+            ORDER BY expiry_date ASC
         `, [prodId]);
-        const nearestExpiry = nearestExpRes.rows.length > 0 ? nearestExpRes.rows[0].expiry_date : null;
+
+        const now = new Date();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const validNextBatch = allRemainingBatches.rows.find(b => {
+            const exp = new Date(b.expiry_date);
+            return isNaN(exp.getTime()) || exp >= todayStart;
+        });
+
+        const nearestExpiry = validNextBatch ? validNextBatch.expiry_date : (allRemainingBatches.rows[0]?.expiry_date || null);
 
         const sqlUpdate = `UPDATE products SET barcode_number=COALESCE($1, barcode_number), prod_name=COALESCE($2, prod_name), prod_category=COALESCE($3, prod_category), orig_price=COALESCE($4, orig_price), price_capital=COALESCE($5, price_capital), stock_Qty=$6, expiry_Date=$7, img_Url=COALESCE($8, img_Url), Favorite=COALESCE($9, Favorite) WHERE prod_id=$10`;
         await db.query(sqlUpdate, [barcode, name, category, orig_price, price_capital, targetStock, nearestExpiry, img, fav, prodId]);
@@ -242,6 +260,50 @@ app.get('/api/product-batches/:id', async (req, res) => {
         res.json(results.rows);
     } catch (err) {
         console.error("Fetch batches error:", err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Dispose / Pull Expired Batch from Inventory (Spoilage & Loss Write-off)
+app.post('/api/dispose-batch', async (req, res) => {
+    const { batch_id, reason } = req.body;
+    if (!batch_id) return res.status(400).json({ error: "Batch ID required." });
+
+    try {
+        const bRes = await db.query(`SELECT pb.*, p.prod_name FROM product_batches pb JOIN products p ON pb.prod_id = p.prod_id WHERE pb.batch_id = $1`, [batch_id]);
+        if (bRes.rows.length === 0) return res.status(404).json({ error: "Batch not found." });
+
+        const batch = bRes.rows[0];
+        const disposedQty = batch.batch_qty;
+        const prodId = batch.prod_id;
+
+        // Zero out this batch and append disposal note
+        await db.query(`UPDATE product_batches SET batch_qty = 0, supplier_note = COALESCE(supplier_note, '') || ' [DISPOSED EXPIRED: ' || TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD') || ']' WHERE batch_id = $1`, [batch_id]);
+
+        // Recalculate remaining total stock from active batches
+        const sumSql = `SELECT COALESCE(SUM(batch_qty), 0) AS total_stock FROM product_batches WHERE prod_id = $1 AND batch_qty > 0`;
+        const sumRes = await db.query(sumSql, [prodId]);
+        const newTotalStock = parseInt(sumRes.rows[0].total_stock) || 0;
+
+        // Recalculate nearest active expiry date from remaining unexpired batches
+        const allRemaining = await db.query(`SELECT expiry_date FROM product_batches WHERE prod_id = $1 AND batch_qty > 0 AND expiry_date IS NOT NULL ORDER BY expiry_date ASC`, [prodId]);
+        const now = new Date();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const validNext = allRemaining.rows.find(b => {
+            const exp = new Date(b.expiry_date);
+            return isNaN(exp.getTime()) || exp >= todayStart;
+        });
+        const nearestExpiry = validNext ? validNext.expiry_date : (allRemaining.rows[0]?.expiry_date || null);
+
+        // Update product stock and nearest expiry
+        await db.query('UPDATE products SET stock_Qty = $1, expiry_Date = $2 WHERE prod_id = $3', [newTotalStock, nearestExpiry, prodId]);
+
+        // Log disposal in activity log
+        logActivity(req.userEmail, "Spoilage Disposal", `Disposed ${disposedQty} expired units of "${batch.prod_name}" from Batch #${batch_id} (${reason || 'Expired stock pulled from shelf'})`);
+
+        res.json({ message: `Successfully pulled and disposed ${disposedQty} expired units of ${batch.prod_name}!`, new_total_stock: newTotalStock, nearest_expiry: nearestExpiry });
+    } catch (err) {
+        console.error("Dispose batch error:", err);
         res.status(500).json({ error: err.message });
     }
 });

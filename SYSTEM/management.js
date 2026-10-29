@@ -4067,19 +4067,34 @@ async function openBatchViewerModal(event, prodId) {
 
                 const receivedFormatted = b.received_date ? new Date(b.received_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Opening';
                 const isDepleted = b.batch_qty <= 0;
+                const isExpiredUnsold = !isDepleted && b.expiry_date && Math.ceil((new Date(b.expiry_date) - now) / (1000 * 60 * 60 * 24)) <= 0;
+
+                let actionOrNote = `<span style="color: #64748b; font-size: 0.78rem;">${b.supplier_note || '—'}</span>`;
+                if (isExpiredUnsold) {
+                    actionOrNote = `
+                        <div style="display: flex; flex-direction: column; gap: 4px;">
+                            <span style="color: #dc2626; font-size: 0.72rem; font-weight: 800;"><i class="fa-solid fa-ban"></i> Quarantined / Unsellable</span>
+                            <button type="button" onclick="disposeExpiredBatch(event, ${b.batch_id}, '${p.prod_name.replace(/'/g, "\\'")}', ${b.batch_qty})" style="background: #fee2e2; border: 1px solid #fca5a5; color: #b91c1c; font-size: 0.72rem; font-weight: 800; border-radius: 6px; padding: 4px 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; width: fit-content; transition: all 0.15s;" title="Pull and write off expired units from shelf">
+                                <i class="fa-solid fa-trash-can"></i> Pull from Shelf (${b.batch_qty} pcs)
+                            </button>
+                        </div>
+                    `;
+                } else if (isDepleted && (b.supplier_note || '').includes('DISPOSED')) {
+                    actionOrNote = `<span style="color: #94a3b8; font-size: 0.74rem; font-style: italic;"><i class="fa-solid fa-check"></i> Disposed from shelf</span>`;
+                }
 
                 return `
-                    <tr style="${isDepleted ? 'opacity: 0.5; background: #f8fafc;' : ''}; border-bottom: 1px solid #f1f5f9;">
+                    <tr style="${isExpiredUnsold ? 'background: #fff1f2;' : (isDepleted ? 'opacity: 0.5; background: #f8fafc;' : '')}; border-bottom: 1px solid #f1f5f9;">
                         <td style="padding: 10px 12px; font-weight: 700; color: #1e293b;">
                             Batch #${b.batch_id}
                             <span style="display: block; font-size: 0.72rem; color: #94a3b8; font-weight: 500;">Rcvd: ${receivedFormatted}</span>
                         </td>
                         <td style="padding: 10px 12px; text-align: center;">
-                            <strong style="color: ${isDepleted ? '#94a3b8' : '#0f172a'}; font-size: 0.95rem;">${b.batch_qty}</strong>
+                            <strong style="color: ${isExpiredUnsold ? '#dc2626' : (isDepleted ? '#94a3b8' : '#0f172a')}; font-size: 0.95rem;">${b.batch_qty}</strong>
                             <span style="font-size: 0.72rem; color: #94a3b8; display: block;">of ${b.initial_qty}</span>
                         </td>
                         <td style="padding: 10px 12px;">${expiryStatus}</td>
-                        <td style="padding: 10px 12px; color: #64748b; font-size: 0.78rem;">${b.supplier_note || '—'}</td>
+                        <td style="padding: 10px 12px;">${actionOrNote}</td>
                     </tr>
                 `;
             }).join('');
@@ -4105,6 +4120,42 @@ function closeBatchViewerModal() {
     const modal = document.getElementById('batchViewerModal');
     if (modal) modal.style.display = 'none';
     activeBatchViewerProdId = null;
+}
+
+async function disposeExpiredBatch(event, batchId, prodName, qty) {
+    if (event) event.stopPropagation();
+    if (!confirm(`Are you sure you want to pull and dispose ${qty} expired unit(s) of "${prodName}" from inventory?\n\nThis will write off the expired batch from sellable stock and record an inventory spoilage log.`)) {
+        return;
+    }
+
+    try {
+        const userEmail = localStorage.getItem('currentUser') || 'admin@weljo.com';
+        const res = await fetch('http://localhost:3000/api/dispose-batch', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-user-email': userEmail
+            },
+            body: JSON.stringify({
+                batch_id: batchId,
+                reason: 'Expired stock pulled from shelf'
+            })
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+            alert(data.message || "Expired batch successfully pulled and disposed!");
+            refreshProductsUI();
+            if (activeBatchViewerProdId) {
+                openBatchViewerModal(null, activeBatchViewerProdId);
+            }
+        } else {
+            alert("Error: " + (data.error || "Failed to dispose expired batch."));
+        }
+    } catch (err) {
+        console.error("Dispose batch error:", err);
+        alert("Network error: Unable to connect to server.");
+    }
 }
 
 

@@ -35,6 +35,16 @@ async function loadProductsFromDB() {
 function addToCart(id, customQty = null) {
     const prod = products.find(p => p.prod_id === id);
     if (!prod || prod.stock_Qty <= 0) return alert("Out of Stock!");
+
+    // Safety Alert: Block selling expired goods
+    if (prod.expiry_Date) {
+        const expDate = new Date(prod.expiry_Date);
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        if (!isNaN(expDate.getTime()) && expDate < todayStart) {
+            return alert(`Safety Alert: "${prod.prod_name}" has EXPIRED (Date: ${expDate.toLocaleDateString()}) and cannot be sold.`);
+        }
+    }
     
     let qtyToAdd = customQty !== null ? customQty : (pendingScanMultiplier > 1 ? pendingScanMultiplier : 1);
     pendingScanMultiplier = 1; // Reset prefix multiplier after consumption
