@@ -3150,26 +3150,61 @@ function toggleReportCategory(catSafeId) {
         toggledReportCategories.add(catSafeId);
     }
 
-    const chevron = document.getElementById(`cat-chevron-${catSafeId}`);
-    if (chevron) {
-        if (toggledReportCategories.has(catSafeId)) {
-            chevron.classList.remove('fa-chevron-right');
-            chevron.classList.add('fa-chevron-down');
+    const isToggled = toggledReportCategories.has(catSafeId);
+
+    // Update chevron on Page 1 if present
+    const p1Chevron = document.getElementById(`cat-chevron-${catSafeId}`);
+    if (p1Chevron) {
+        p1Chevron.className = `fa-solid ${isToggled ? 'fa-chevron-down' : 'fa-chevron-right'}`;
+    }
+
+    // Update chevron on Page 2
+    const p2Chevron = document.getElementById(`p2-cat-chevron-${catSafeId}`);
+    if (p2Chevron) {
+        p2Chevron.className = `fa-solid ${isToggled ? 'fa-chevron-down' : 'fa-chevron-right'}`;
+    }
+
+    // Update category header classes on Page 2 (toggled vs untoggled)
+    const p2Headers = document.querySelectorAll(`.p2-cat-header-${catSafeId}`);
+    p2Headers.forEach(h => {
+        if (isToggled) {
+            h.classList.remove('p2-cat-untoggled');
+            h.classList.add('p2-cat-toggled');
         } else {
-            chevron.classList.remove('fa-chevron-down');
-            chevron.classList.add('fa-chevron-right');
+            h.classList.remove('p2-cat-toggled');
+            h.classList.add('p2-cat-untoggled');
+        }
+    });
+
+    // Expand or collapse breakdown items for this category on Page 2
+    const p2Items = document.querySelectorAll(`.p2-cat-item-${catSafeId}`);
+    p2Items.forEach(r => {
+        r.style.display = isToggled ? 'table-row' : 'none';
+        if (isToggled) {
+            r.classList.remove('p2-item-collapsed');
+        } else {
+            r.classList.add('p2-item-collapsed');
+        }
+    });
+
+    // Update Page 2 print state
+    const page2Container = document.getElementById('printReportAreaPage2');
+    if (page2Container) {
+        if (toggledReportCategories.size === 0) {
+            page2Container.classList.add('has-no-toggled-categories');
+        } else {
+            page2Container.classList.remove('has-no-toggled-categories');
         }
     }
 
     updateToggleAllButtonText();
-    renderReportPage2();
 }
 
 function toggleAllReportCategories() {
     if (!currentCategoriesData || currentCategoriesData.length === 0) return;
 
     const allCatIds = currentCategoriesData.map(c => c.name.replace(/[^a-zA-Z0-9]/g, '_'));
-    const allAlreadyToggled = allCatIds.every(id => toggledReportCategories.has(id));
+    const allAlreadyToggled = allCatIds.length > 0 && allCatIds.every(id => toggledReportCategories.has(id));
 
     if (allAlreadyToggled) {
         toggledReportCategories.clear();
@@ -3177,21 +3212,50 @@ function toggleAllReportCategories() {
         allCatIds.forEach(id => toggledReportCategories.add(id));
     }
 
-    allCatIds.forEach(id => {
-        const chevron = document.getElementById(`cat-chevron-${id}`);
-        if (chevron) {
-            if (toggledReportCategories.has(id)) {
-                chevron.classList.remove('fa-chevron-right');
-                chevron.classList.add('fa-chevron-down');
-            } else {
-                chevron.classList.remove('fa-chevron-down');
-                chevron.classList.add('fa-chevron-right');
-            }
+    allCatIds.forEach(catSafeId => {
+        const isToggled = toggledReportCategories.has(catSafeId);
+
+        const p1Chevron = document.getElementById(`cat-chevron-${catSafeId}`);
+        if (p1Chevron) {
+            p1Chevron.className = `fa-solid ${isToggled ? 'fa-chevron-down' : 'fa-chevron-right'}`;
         }
+        const p2Chevron = document.getElementById(`p2-cat-chevron-${catSafeId}`);
+        if (p2Chevron) {
+            p2Chevron.className = `fa-solid ${isToggled ? 'fa-chevron-down' : 'fa-chevron-right'}`;
+        }
+
+        const p2Headers = document.querySelectorAll(`.p2-cat-header-${catSafeId}`);
+        p2Headers.forEach(h => {
+            if (isToggled) {
+                h.classList.remove('p2-cat-untoggled');
+                h.classList.add('p2-cat-toggled');
+            } else {
+                h.classList.remove('p2-cat-toggled');
+                h.classList.add('p2-cat-untoggled');
+            }
+        });
+
+        const p2Items = document.querySelectorAll(`.p2-cat-item-${catSafeId}`);
+        p2Items.forEach(r => {
+            r.style.display = isToggled ? 'table-row' : 'none';
+            if (isToggled) {
+                r.classList.remove('p2-item-collapsed');
+            } else {
+                r.classList.add('p2-item-collapsed');
+            }
+        });
     });
 
+    const page2Container = document.getElementById('printReportAreaPage2');
+    if (page2Container) {
+        if (toggledReportCategories.size === 0) {
+            page2Container.classList.add('has-no-toggled-categories');
+        } else {
+            page2Container.classList.remove('has-no-toggled-categories');
+        }
+    }
+
     updateToggleAllButtonText();
-    renderReportPage2();
 }
 
 function updateToggleAllButtonText() {
@@ -3201,7 +3265,7 @@ function updateToggleAllButtonText() {
     const allCatIds = currentCategoriesData.map(c => c.name.replace(/[^a-zA-Z0-9]/g, '_'));
     const allAlreadyToggled = allCatIds.length > 0 && allCatIds.every(id => toggledReportCategories.has(id));
 
-    btnText.innerText = allAlreadyToggled ? 'Collapse All (Page 1 Only)' : 'Expand All (Page 2)';
+    btnText.innerText = allAlreadyToggled ? 'Collapse All (Page 2)' : 'Expand All (Page 2)';
 }
 
 function renderReportPage2() {
@@ -3209,10 +3273,19 @@ function renderReportPage2() {
     const page2Body = document.getElementById('reportTableBodyPage2');
     if (!page2Container || !page2Body) return;
 
-    if (currentReportType !== 'cash' || !currentCategoriesData || currentCategoriesData.length === 0 || toggledReportCategories.size === 0) {
+    if (currentReportType !== 'cash' || !currentCategoriesData || currentCategoriesData.length === 0) {
         page2Container.style.display = 'none';
         page2Body.innerHTML = '';
         return;
+    }
+
+    // Page 2 is visible on screen so the user can interactively toggle categories right on Page 2!
+    page2Container.style.display = 'block';
+
+    if (toggledReportCategories.size === 0) {
+        page2Container.classList.add('has-no-toggled-categories');
+    } else {
+        page2Container.classList.remove('has-no-toggled-categories');
     }
 
     // Sync Page 2 Period and Generated Time with Page 1
@@ -3228,17 +3301,20 @@ function renderReportPage2() {
 
     currentCategoriesData.forEach(cat => {
         const catSafeId = cat.name.replace(/[^a-zA-Z0-9]/g, '_');
-        // Only render this category on Page 2 if it was toggled!
-        if (!toggledReportCategories.has(catSafeId)) return;
+        const isToggled = toggledReportCategories.has(catSafeId);
 
-        // Category Subheader Row on Page 2 (Exact visual hierarchy from Image 2)
+        // Category Subheader Row on Page 2 (CAN BE TOGGLED RIGHT HERE ON PAGE 2!)
         p2Html += `
-            <tr style="background: #f1f5f9; border-top: 2px solid #cbd5e1; border-bottom: 2px solid #cbd5e1; page-break-after: avoid;">
+            <tr class="report-cat-header-row p2-cat-header-${catSafeId} ${isToggled ? 'p2-cat-toggled' : 'p2-cat-untoggled'}" 
+                onclick="toggleReportCategory('${catSafeId}')" 
+                style="background: #f1f5f9; border-top: 2px solid #cbd5e1; border-bottom: 2px solid #cbd5e1; page-break-after: avoid; cursor: pointer; user-select: none;" 
+                title="Click to toggle item breakdown">
                 <td colspan="5" style="padding: 10px 12px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
                         <span style="font-weight: 800; color: #0f172a; font-size: 0.92rem; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px;">
-                            <i class="fa-solid fa-chevron-down" style="color: #64748b; font-size: 0.75rem;"></i>
+                            <i id="p2-cat-chevron-${catSafeId}" class="fa-solid ${isToggled ? 'fa-chevron-down' : 'fa-chevron-right'}" style="color: #64748b; font-size: 0.75rem;"></i>
                             <i class="${cat.icon}" style="color: #64748b;"></i> ${cat.name}
+                            <span class="no-print" style="font-size: 0.72rem; color: #94a3b8; font-weight: 600;">(Click to toggle)</span>
                         </span>
                         <span style="font-size: 0.8rem; color: #475569; font-weight: 700;">
                             Subtotal: ${cat.totalQty} items &nbsp;•&nbsp; Sales: <strong style="color: #0f172a;">₱${cat.totalGross.toFixed(2)}</strong> &nbsp;•&nbsp; Profit: <strong style="color: #10b981;">₱${cat.totalProfit.toFixed(2)}</strong>
@@ -3259,10 +3335,13 @@ function renderReportPage2() {
                 return a.price - b.price;
             });
 
+            const displayStyle = isToggled ? '' : 'display: none;';
+            const collapsedClass = isToggled ? '' : 'p2-item-collapsed';
+
             if (tiers.length <= 1) {
                 const singleTier = tiers[0] || { price: 0 };
                 p2Html += `
-                    <tr style="border-bottom: 1px solid #f1f5f9;">
+                    <tr class="p2-cat-item-${catSafeId} ${collapsedClass}" style="border-bottom: 1px solid #f1f5f9; ${displayStyle}">
                         <td style="padding: 9px 8px 9px 28px; color: #1e293b; font-weight: 600;">
                             <span style="color: #94a3b8; margin-right: 6px;">•</span> ${name}
                         </td>
@@ -3278,7 +3357,7 @@ function renderReportPage2() {
                 const maxP = Math.max(...tiers.map(t => t.price));
 
                 p2Html += `
-                    <tr style="border-bottom: 1px dashed #cbd5e1; background: #fafbfc;">
+                    <tr class="p2-cat-item-${catSafeId} ${collapsedClass}" style="border-bottom: 1px dashed #cbd5e1; background: #fafbfc; ${displayStyle}">
                         <td style="padding: 9px 8px 9px 28px; font-weight: 700; color: #0f172a;">
                             <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                                 <span>• ${name}</span>
@@ -3299,7 +3378,7 @@ function renderReportPage2() {
                 tiers.forEach((tier, idx) => {
                     const isLastTier = idx === tiers.length - 1;
                     p2Html += `
-                        <tr style="border-bottom: ${isLastTier ? '1px solid #f1f5f9' : '1px dashed #f8fafc'}; background: #f8fafc;">
+                        <tr class="p2-cat-item-${catSafeId} ${collapsedClass}" style="border-bottom: ${isLastTier ? '1px solid #f1f5f9' : '1px dashed #f8fafc'}; background: #f8fafc; ${displayStyle}">
                             <td style="padding: 5px 8px 5px 48px; color: #64748b; font-size: 0.8rem;">
                                 ↳ Sold @ <strong>₱${tier.price.toFixed(2)}</strong>
                             </td>
@@ -3315,7 +3394,6 @@ function renderReportPage2() {
     });
 
     page2Body.innerHTML = p2Html;
-    page2Container.style.display = p2Html.trim() ? 'block' : 'none';
 }
 
 async function generateReportEngine() {

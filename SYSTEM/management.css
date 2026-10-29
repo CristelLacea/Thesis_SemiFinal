@@ -2618,7 +2618,17 @@ td {
         break-before: page !important;
     }
 
+    #printReportAreaPage2.has-no-toggled-categories,
     #printReportAreaPage2[style*="display: none"] {
+        display: none !important;
+    }
+
+    /* On Page 2, if a category is untoggled, do not print its header or breakdown items */
+    .p2-cat-untoggled {
+        display: none !important;
+    }
+
+    .p2-item-collapsed {
         display: none !important;
     }
 }
