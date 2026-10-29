@@ -821,11 +821,17 @@
                 <label style="font-weight: 600; font-size: 0.85rem; color: #475569;">End:</label>
                 <input type="date" id="reportEndDate" onchange="generateReportEngine()" style="padding: 8px 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-weight: 600; color: #1e293b; outline: none; background: white;">
             </div>
-            <button type="button" id="btnToggleAllCategories" onclick="toggleAllReportCategories()" style="background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 10px 14px; border-radius: 10px; font-weight: 700; font-size: 0.82rem; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;" title="Expand or collapse all category item breakdowns for Page 2">
+            <button type="button" id="btnToggleAllCategories" onclick="toggleAllReportCategories()" style="background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 9px 12px; border-radius: 8px; font-weight: 700; font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;" title="Expand or collapse all category item breakdowns for Page 2">
                 <i class="fa-solid fa-layer-group" style="color: #64748b;"></i> <span id="btnToggleAllCategoriesText">Expand All (Page 2)</span>
             </button>
-            <button onclick="window.print()" style="background: #10b981; color: white; padding: 10px 18px; border-radius: 10px; border: none; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15);">
-                <i class="fa-solid fa-print"></i> Print / Save PDF
+            <button type="button" id="btnPrintSummaryOnly" onclick="printReport('summary')" style="background: white; color: #1e293b; border: 1px solid #cbd5e1; padding: 9px 12px; border-radius: 8px; font-weight: 700; font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;" title="Print Page 1 Category Summary only">
+                <i class="fa-solid fa-file-invoice" style="color: #2563eb;"></i> <span>Print Summary (P1)</span>
+            </button>
+            <button type="button" id="btnPrintBreakdownOnly" onclick="printReport('breakdown')" style="background: white; color: #1e293b; border: 1px solid #cbd5e1; padding: 9px 12px; border-radius: 8px; font-weight: 700; font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;" title="Print Page 2+ Detailed Item Breakdown only">
+                <i class="fa-solid fa-list-ul" style="color: #d97706;"></i> <span>Print Breakdown (P2+)</span>
+            </button>
+            <button type="button" id="btnPrintAllReport" onclick="printReport('all')" style="background: #10b981; color: white; padding: 9px 16px; border-radius: 8px; border: none; font-weight: 700; font-size: 0.82rem; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.18); transition: all 0.2s;">
+                <i class="fa-solid fa-print"></i> <span id="btnPrintAllReportText">Print Complete Report</span>
             </button>
         </div>
     </div>
@@ -912,7 +918,6 @@
             </div>
             <div style="text-align: right; display: flex; flex-direction: column; justify-content: center; align-items: flex-end; min-width: 260px; max-width: 55%;">
                 <h2 style="font-size: 1.2rem; font-weight: 800; color: #1e293b; margin: 0; text-transform: uppercase; letter-spacing: 0.5px; line-height: 1.2;">Sales Performance Report</h2>
-                <div style="font-size: 0.88rem; margin: 3px 0 1px 0; text-align: right; color: #2563eb; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Detailed Item Breakdown (Page 2)</div>
                 <p style="font-size: 0.8rem; color: #64748b; margin: 3px 0 0 0; font-weight: 500;"><strong>Period:</strong> <span id="reportPeriodTextPage2"></span></p>
                 <p style="font-size: 0.8rem; color: #64748b; margin: 2px 0 0 0; font-weight: 500;"><strong>Generated:</strong> <span id="reportGenTimePage2"></span></p>
             </div>
@@ -939,7 +944,7 @@
         <!-- Footer Note on Page 2 -->
         <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed #cbd5e1; padding-top: 15px; margin-top: 20px; font-size: 0.8rem; color: #94a3b8;">
             <span>Weljo POS Official Records • End of Item Breakdown</span>
-            <span>Page 2</span>
+            <span></span>
         </div>
     </div>
 </section>

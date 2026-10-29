@@ -3127,6 +3127,12 @@ function setReportType(type) {
     if (btnToggleAll) {
         btnToggleAll.style.display = type === 'cash' ? 'flex' : 'none';
     }
+    const btnSummaryOnly = document.getElementById('btnPrintSummaryOnly');
+    const btnBreakdownOnly = document.getElementById('btnPrintBreakdownOnly');
+    const btnAllReportText = document.getElementById('btnPrintAllReportText');
+    if (btnSummaryOnly) btnSummaryOnly.style.display = type === 'cash' ? 'flex' : 'none';
+    if (btnBreakdownOnly) btnBreakdownOnly.style.display = type === 'cash' ? 'flex' : 'none';
+    if (btnAllReportText) btnAllReportText.innerText = type === 'cash' ? 'Print Complete Report' : 'Print Collections Report';
 
     const p2Area = document.getElementById('printReportAreaPage2');
     if (p2Area && type === 'collections') {
@@ -3142,6 +3148,26 @@ function setReportType(type) {
 
 let toggledReportCategories = new Set();
 let currentCategoriesData = [];
+
+function printReport(mode) {
+    document.body.classList.remove('print-summary-only', 'print-breakdown-only');
+
+    if (mode === 'summary') {
+        document.body.classList.add('print-summary-only');
+    } else if (mode === 'breakdown') {
+        if (currentReportType === 'cash' && toggledReportCategories.size === 0) {
+            alert("No categories are currently toggled for the item breakdown.\nPlease click on a category dropdown arrow on Page 2 (or click 'Expand All') to view items before printing the breakdown.");
+            return;
+        }
+        document.body.classList.add('print-breakdown-only');
+    }
+
+    window.print();
+
+    setTimeout(() => {
+        document.body.classList.remove('print-summary-only', 'print-breakdown-only');
+    }, 1000);
+}
 
 function toggleReportCategory(catSafeId) {
     if (toggledReportCategories.has(catSafeId)) {
@@ -3584,17 +3610,15 @@ async function generateReportEngine() {
                 const catSafeId = cat.name.replace(/[^a-zA-Z0-9]/g, '_');
                 const isToggled = toggledReportCategories.has(catSafeId);
 
-                // Page 1: ONLY Category Summary Rows (Exact match to Image 1)
+                // Page 1: Clean, Static Category Summary Row (No chevrons, purely executive summary)
                 tableHtml += `
-                    <tr class="report-cat-header-row" onclick="toggleReportCategory('${catSafeId}')" style="background: #f1f5f9; border-top: 2px solid #cbd5e1; border-bottom: 2px solid #cbd5e1; cursor: pointer; user-select: none;" title="Click to toggle item breakdown on Page 2">
-                        <td colspan="5" style="padding: 10px 12px;">
+                    <tr style="background: #f1f5f9; border-top: 2px solid #cbd5e1; border-bottom: 2px solid #cbd5e1;">
+                        <td colspan="5" style="padding: 11px 14px;">
                             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
                                 <span style="font-weight: 800; color: #0f172a; font-size: 0.92rem; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px;">
-                                    <i id="cat-chevron-${catSafeId}" class="fa-solid ${isToggled ? 'fa-chevron-down' : 'fa-chevron-right'}" style="color: #64748b; font-size: 0.75rem;"></i>
                                     <i class="${cat.icon}" style="color: #64748b;"></i> ${cat.name}
-                                    <span class="no-print" style="font-size: 0.72rem; color: #94a3b8; font-weight: 600;">(Click to toggle)</span>
                                 </span>
-                                <span style="font-size: 0.8rem; color: #475569; font-weight: 700;">
+                                <span style="font-size: 0.82rem; color: #475569; font-weight: 700;">
                                     Subtotal: ${cat.totalQty} items &nbsp;•&nbsp; Sales: <strong style="color: #0f172a;">₱${cat.totalGross.toFixed(2)}</strong> &nbsp;•&nbsp; Profit: <strong style="color: #10b981;">₱${cat.totalProfit.toFixed(2)}</strong>
                                 </span>
                             </div>
