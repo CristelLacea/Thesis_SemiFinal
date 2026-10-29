@@ -16,6 +16,7 @@ let products = [];
 let cart = [];
 let selectedCartItemId = null;
 let pendingScanMultiplier = 1;
+let targetNextScan = false;
 let scannerStrokeBuffer = "";
 let lastStrokeTimestamp = Date.now();
 let scanStartTime = null; // Tracks when the current scan burst started
@@ -37,6 +38,7 @@ function addToCart(id, customQty = null) {
     
     let qtyToAdd = customQty !== null ? customQty : (pendingScanMultiplier > 1 ? pendingScanMultiplier : 1);
     pendingScanMultiplier = 1; // Reset prefix multiplier after consumption
+    targetNextScan = false;
     
     const itemInCart = cart.find(c => c.prod_id === id);
     const salePrice = prod.orig_price + prod.price_capital;
@@ -82,6 +84,7 @@ function addToCart(id, customQty = null) {
 
 function selectCartItem(id) {
     selectedCartItemId = id;
+    targetNextScan = false;
     updateCartUI();
 }
 
@@ -110,95 +113,157 @@ function promptItemQty(id) {
     updateCartUI();
 }
 
-function applyMultiplier() {
-    const cashInput = document.getElementById('cashReceived');
-    let enteredVal = parseInt(cashInput?.value, 10);
+// --- 3.1 ENHANCED QUICK QUANTITY MULTIPLIER ENGINE (OPTION B: 1x, 2x, 5x, 10x, Custom) ---
+function setMultiplier(multiplier) {
+    const qty = parseInt(multiplier, 10);
+    if (isNaN(qty) || qty <= 0) return;
 
-    // If nothing typed on the numpad, prompt directly
-    if (isNaN(enteredVal) || enteredVal <= 0) {
-        const targetItem = cart.find(c => c.prod_id === selectedCartItemId) || (cart.length > 0 ? cart[cart.length - 1] : null);
-        const defaultVal = targetItem ? targetItem.qty : 2;
-        const targetName = targetItem ? `"${targetItem.prod_name}"` : "selected item";
-        
-        const userInput = prompt(`Enter quantity multiplier for ${targetName}:`, defaultVal);
-        if (userInput === null) return;
-        enteredVal = parseInt(userInput.trim(), 10);
-        if (isNaN(enteredVal) || enteredVal <= 0) {
-            alert("Validation Error: Multiplier must be a positive number of at least 1.");
-            return;
-        }
-    }
-
-    // Case 1: An item is in the cart
-    if (cart.length > 0) {
+    // Case 1: Active cart item exists and we are not in next-scan override mode
+    if (cart.length > 0 && !targetNextScan) {
         if (!selectedCartItemId || !cart.some(c => c.prod_id === selectedCartItemId)) {
             selectedCartItemId = cart[cart.length - 1].prod_id;
         }
-        
+
         const item = cart.find(c => c.prod_id === selectedCartItemId);
         const prod = products.find(p => p.prod_id === selectedCartItemId);
-        
+
         if (item && prod) {
-            if (enteredVal > prod.stock_Qty) {
+            if (qty > prod.stock_Qty) {
                 alert(`Stock Limit: Only ${prod.stock_Qty} available in stock! Setting quantity to ${prod.stock_Qty}.`);
                 item.qty = prod.stock_Qty;
             } else {
-                item.qty = enteredVal;
+                item.qty = qty;
             }
-            
-            // Wipe cash input and recalculate change
-            if (cashInput) {
-                cashInput.value = '';
-                calculateChange();
-            }
-            
+
             updateCartUI();
             return;
         }
     }
 
-    // Case 2: Cart is empty - Set Prefix Multiplier for next barcode scan
-    pendingScanMultiplier = enteredVal;
-    if (cashInput) {
+    // Case 2: Cart is empty or Cashier explicitly primed Next Scan Multiplier
+    pendingScanMultiplier = qty;
+    updateMultiplierBanner();
+}
+
+function promptCustomMultiplier() {
+    const cashInput = document.getElementById('cashReceived');
+    let enteredVal = parseInt(cashInput?.value, 10);
+
+    // If cashier already typed a number on the numpad into cashReceived, use it and clear cash input!
+    if (!isNaN(enteredVal) && enteredVal > 0) {
         cashInput.value = '';
         calculateChange();
+        setMultiplier(enteredVal);
+        return;
     }
+
+    // Otherwise prompt cleanly
+    const targetItem = (!targetNextScan && cart.length > 0) 
+        ? (cart.find(c => c.prod_id === selectedCartItemId) || cart[cart.length - 1]) 
+        : null;
+    const defaultVal = targetItem ? targetItem.qty : (pendingScanMultiplier > 1 ? pendingScanMultiplier : 2);
+    const targetLabel = targetItem ? `"${targetItem.prod_name}"` : "the next scanned item";
+
+    const input = prompt(`Enter custom quantity multiplier for ${targetLabel}:`, defaultVal);
+    if (input === null) return;
+
+    const parsed = parseInt(input.trim(), 10);
+    if (isNaN(parsed) || parsed <= 0) {
+        alert("Validation Error: Multiplier must be a positive whole number (at least 1).");
+        return;
+    }
+
+    setMultiplier(parsed);
+}
+
+// Backwards-compatibility alias for legacy calls
+function applyMultiplier() {
+    promptCustomMultiplier();
+}
+
+function toggleMultiplierTarget() {
+    if (cart.length === 0) return;
+    targetNextScan = !targetNextScan;
     updateMultiplierBanner();
-    alert(`Prefix Multiplier Set: Next barcode scan will ring up × ${enteredVal} pcs!`);
 }
 
 function updateMultiplierBanner() {
     const banner = document.getElementById('itemMultiplierBanner');
     const textSpan = document.getElementById('multiplierTargetText');
     const badge = document.getElementById('multiplierBadge');
-    if (!banner || !textSpan || !badge) return;
+    
+    let activeMultiplier = 1;
 
     if (cart.length === 0) {
-        if (pendingScanMultiplier > 1) {
+        activeMultiplier = pendingScanMultiplier;
+        if (banner && textSpan && badge) {
+            if (pendingScanMultiplier > 1) {
+                banner.style.display = 'flex';
+                banner.style.background = '#fffbeb';
+                banner.style.borderColor = '#fde68a';
+                textSpan.innerHTML = `<span style="color: #b45309; font-weight: 700;"><i class="fa-solid fa-barcode"></i> Next Scan Multiplier:</span>`;
+                badge.innerText = `× ${pendingScanMultiplier}`;
+                badge.style.background = '#d97706';
+            } else {
+                banner.style.display = 'none';
+            }
+        }
+    } else if (targetNextScan) {
+        activeMultiplier = pendingScanMultiplier;
+        if (banner && textSpan && badge) {
             banner.style.display = 'flex';
             banner.style.background = '#fffbeb';
             banner.style.borderColor = '#fde68a';
-            textSpan.innerHTML = `<span style="color: #b45309; font-weight: 700;"><i class="fa-solid fa-barcode"></i> Next Scan Multiplier:</span>`;
+            textSpan.innerHTML = `<span style="color: #b45309; font-weight: 700;"><i class="fa-solid fa-barcode"></i> Next Scan Multiplier:</span> <span style="font-size:0.68rem; color:#d97706; text-decoration:underline;">(Click to target item)</span>`;
             badge.innerText = `× ${pendingScanMultiplier}`;
             badge.style.background = '#d97706';
-        } else {
-            banner.style.display = 'none';
         }
-        return;
+    } else {
+        // Cart has items and targetNextScan is false -> targeting selected item
+        const item = cart.find(c => c.prod_id === selectedCartItemId) || cart[cart.length - 1];
+        activeMultiplier = item ? item.qty : 1;
+        
+        if (banner && textSpan && badge) {
+            banner.style.display = 'flex';
+            banner.style.background = '#eff6ff';
+            banner.style.borderColor = '#bfdbfe';
+
+            const prod = item ? products.find(p => p.prod_id === item.prod_id) : null;
+            const stockInfo = prod ? `(Stock: ${prod.stock_Qty})` : '';
+
+            textSpan.innerHTML = `<span style="color: #2563eb; font-weight: 700;">Selected:</span> <strong>${item ? item.prod_name : 'Item'}</strong> <span style="color:#64748b; font-size:0.7rem;">${stockInfo}</span>`;
+            badge.innerText = `× ${activeMultiplier}`;
+            badge.style.background = '#2563eb';
+        }
     }
 
-    // Cart has items
-    banner.style.display = 'flex';
-    banner.style.background = '#eff6ff';
-    banner.style.borderColor = '#bfdbfe';
+    // Update active highlight on multiplier buttons
+    updateActiveMultiplierButtons(activeMultiplier);
+}
 
-    const item = cart.find(c => c.prod_id === selectedCartItemId) || cart[cart.length - 1];
-    const prod = item ? products.find(p => p.prod_id === item.prod_id) : null;
-    const stockInfo = prod ? `(Stock: ${prod.stock_Qty})` : '';
+function updateActiveMultiplierButtons(activeMultiplier) {
+    const presets = [1, 2, 5, 10];
+    presets.forEach(p => {
+        const btn = document.getElementById(`btnMult${p}`);
+        if (btn) {
+            if (activeMultiplier === p) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        }
+    });
 
-    textSpan.innerHTML = `<span style="color: #1e40af; font-weight: 700;">Selected:</span> <strong>${item ? item.prod_name : 'Item'}</strong> <span style="color:#64748b; font-size:0.7rem;">${stockInfo}</span>`;
-    badge.innerText = `× ${item ? item.qty : 1}`;
-    badge.style.background = '#2563eb';
+    const customBtn = document.getElementById('btnMultCustom');
+    if (customBtn) {
+        if (!presets.includes(activeMultiplier) && activeMultiplier > 0) {
+            customBtn.classList.add('active');
+            customBtn.innerText = `× ${activeMultiplier}`;
+        } else {
+            customBtn.classList.remove('active');
+            customBtn.innerText = 'Custom';
+        }
+    }
 }
 
 function changeQty(id, delta) {

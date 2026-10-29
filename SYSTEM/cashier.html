@@ -86,7 +86,7 @@
                     </div>
                     
                     <!-- Active Item Multiplier Indicator / Target Card -->
-                    <div id="itemMultiplierBanner" style="display: none; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 4px 8px; margin-bottom: 5px; font-size: 0.74rem; color: #1e40af; align-items: center; justify-content: space-between; transition: all 0.2s;">
+                    <div id="itemMultiplierBanner" onclick="toggleMultiplierTarget()" title="Click to toggle between Selected Item and Next Scan Multiplier" style="display: none; cursor: pointer; user-select: none; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 4px 8px; margin-bottom: 5px; font-size: 0.74rem; color: #1e40af; align-items: center; justify-content: space-between; transition: all 0.2s;">
                         <div style="display: flex; align-items: center; gap: 5px; overflow: hidden; max-width: 75%;">
                             <i class="fa-solid fa-calculator" style="color: #2563eb; font-size: 0.8rem;"></i>
                             <span id="multiplierTargetText" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600;">Selected: None</span>
@@ -107,9 +107,14 @@
                         <button type="button" onclick="pressNum('0')" style="padding: 7px 4px; font-size: 0.95rem; border-radius: 6px; min-height: 32px;">0</button>
                         <button type="button" onclick="pressNum('.')" style="padding: 7px 4px; font-size: 0.95rem; border-radius: 6px; min-height: 32px;">.</button>
                         <button type="button" class="clear-btn" onclick="pressNum('C')" style="padding: 7px 4px; font-size: 0.95rem; border-radius: 6px; min-height: 32px;">C</button>
-                        <button type="button" id="btnMultiplyQty" onclick="applyMultiplier()" style="grid-column: span 3; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; border: none; padding: 7px; border-radius: 6px; font-weight: 800; font-size: 0.82rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; box-shadow: 0 2px 5px rgba(37,99,235,0.2); transition: all 0.2s; min-height: 32px;">
-                            <i class="fa-solid fa-xmark" style="font-size: 0.85rem;"></i> Multiply Item Qty (× Qty)
-                        </button>
+                        <!-- Quick Quantity Multiplier Preset Suite (Option B) -->
+                        <div class="multiplier-toolbar" style="grid-column: span 3; display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px;">
+                            <button type="button" class="btn-qty-multiplier" id="btnMult1" onclick="setMultiplier(1)" title="Set quantity to 1">1×</button>
+                            <button type="button" class="btn-qty-multiplier" id="btnMult2" onclick="setMultiplier(2)" title="Set quantity to 2">2×</button>
+                            <button type="button" class="btn-qty-multiplier" id="btnMult5" onclick="setMultiplier(5)" title="Set quantity to 5">5×</button>
+                            <button type="button" class="btn-qty-multiplier" id="btnMult10" onclick="setMultiplier(10)" title="Set quantity to 10">10×</button>
+                            <button type="button" class="btn-qty-multiplier custom-btn" id="btnMultCustom" onclick="promptCustomMultiplier()" title="Set custom quantity multiplier">Custom</button>
+                        </div>
                     </div>
                 </div>
             </div>
