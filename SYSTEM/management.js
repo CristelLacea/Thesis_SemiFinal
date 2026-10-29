@@ -3116,12 +3116,21 @@ function setReportType(type) {
     // Toggle category vs creditor selector visibility
     const catWrapper = document.getElementById('reportCategorySelectWrapper');
     const custWrapper = document.getElementById('reportCustomerSelectWrapper');
+    const btnToggleAll = document.getElementById('btnToggleAllCategories');
 
     if (catWrapper) {
         catWrapper.style.display = type === 'cash' ? 'flex' : 'none';
     }
     if (custWrapper) {
         custWrapper.style.display = type === 'collections' ? 'flex' : 'none';
+    }
+    if (btnToggleAll) {
+        btnToggleAll.style.display = type === 'cash' ? 'flex' : 'none';
+    }
+
+    const p2Area = document.getElementById('printReportAreaPage2');
+    if (p2Area && type === 'collections') {
+        p2Area.style.display = 'none';
     }
 
     if (type === 'collections') {
@@ -3131,18 +3140,182 @@ function setReportType(type) {
     generateReportEngine();
 }
 
-function toggleReportCategoryCollapse(catSafeId) {
-    const rows = document.querySelectorAll(`.report-cat-item-${catSafeId}`);
-    const chevron = document.getElementById(`cat-chevron-${catSafeId}`);
-    if (!rows || rows.length === 0) return;
+let toggledReportCategories = new Set();
+let currentCategoriesData = [];
 
-    const isHidden = rows[0].style.display === 'none';
-    rows.forEach(r => {
-        r.style.display = isHidden ? 'table-row' : 'none';
-    });
-    if (chevron) {
-        chevron.style.transform = isHidden ? 'rotate(0deg)' : 'rotate(-90deg)';
+function toggleReportCategory(catSafeId) {
+    if (toggledReportCategories.has(catSafeId)) {
+        toggledReportCategories.delete(catSafeId);
+    } else {
+        toggledReportCategories.add(catSafeId);
     }
+
+    const chevron = document.getElementById(`cat-chevron-${catSafeId}`);
+    if (chevron) {
+        if (toggledReportCategories.has(catSafeId)) {
+            chevron.classList.remove('fa-chevron-right');
+            chevron.classList.add('fa-chevron-down');
+        } else {
+            chevron.classList.remove('fa-chevron-down');
+            chevron.classList.add('fa-chevron-right');
+        }
+    }
+
+    updateToggleAllButtonText();
+    renderReportPage2();
+}
+
+function toggleAllReportCategories() {
+    if (!currentCategoriesData || currentCategoriesData.length === 0) return;
+
+    const allCatIds = currentCategoriesData.map(c => c.name.replace(/[^a-zA-Z0-9]/g, '_'));
+    const allAlreadyToggled = allCatIds.every(id => toggledReportCategories.has(id));
+
+    if (allAlreadyToggled) {
+        toggledReportCategories.clear();
+    } else {
+        allCatIds.forEach(id => toggledReportCategories.add(id));
+    }
+
+    allCatIds.forEach(id => {
+        const chevron = document.getElementById(`cat-chevron-${id}`);
+        if (chevron) {
+            if (toggledReportCategories.has(id)) {
+                chevron.classList.remove('fa-chevron-right');
+                chevron.classList.add('fa-chevron-down');
+            } else {
+                chevron.classList.remove('fa-chevron-down');
+                chevron.classList.add('fa-chevron-right');
+            }
+        }
+    });
+
+    updateToggleAllButtonText();
+    renderReportPage2();
+}
+
+function updateToggleAllButtonText() {
+    const btnText = document.getElementById('btnToggleAllCategoriesText');
+    if (!btnText || !currentCategoriesData || currentCategoriesData.length === 0) return;
+
+    const allCatIds = currentCategoriesData.map(c => c.name.replace(/[^a-zA-Z0-9]/g, '_'));
+    const allAlreadyToggled = allCatIds.length > 0 && allCatIds.every(id => toggledReportCategories.has(id));
+
+    btnText.innerText = allAlreadyToggled ? 'Collapse All (Page 1 Only)' : 'Expand All (Page 2)';
+}
+
+function renderReportPage2() {
+    const page2Container = document.getElementById('printReportAreaPage2');
+    const page2Body = document.getElementById('reportTableBodyPage2');
+    if (!page2Container || !page2Body) return;
+
+    if (currentReportType !== 'cash' || !currentCategoriesData || currentCategoriesData.length === 0 || toggledReportCategories.size === 0) {
+        page2Container.style.display = 'none';
+        page2Body.innerHTML = '';
+        return;
+    }
+
+    // Sync Page 2 Period and Generated Time with Page 1
+    const p1Period = document.getElementById('reportPeriodText');
+    const p2Period = document.getElementById('reportPeriodTextPage2');
+    if (p1Period && p2Period) p2Period.innerText = p1Period.innerText;
+
+    const p1Gen = document.getElementById('reportGenTime');
+    const p2Gen = document.getElementById('reportGenTimePage2');
+    if (p1Gen && p2Gen) p2Gen.innerText = p1Gen.innerText;
+
+    let p2Html = '';
+
+    currentCategoriesData.forEach(cat => {
+        const catSafeId = cat.name.replace(/[^a-zA-Z0-9]/g, '_');
+        // Only render this category on Page 2 if it was toggled!
+        if (!toggledReportCategories.has(catSafeId)) return;
+
+        // Category Subheader Row on Page 2 (Exact visual hierarchy from Image 2)
+        p2Html += `
+            <tr style="background: #f1f5f9; border-top: 2px solid #cbd5e1; border-bottom: 2px solid #cbd5e1; page-break-after: avoid;">
+                <td colspan="5" style="padding: 10px 12px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                        <span style="font-weight: 800; color: #0f172a; font-size: 0.92rem; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px;">
+                            <i class="fa-solid fa-chevron-down" style="color: #64748b; font-size: 0.75rem;"></i>
+                            <i class="${cat.icon}" style="color: #64748b;"></i> ${cat.name}
+                        </span>
+                        <span style="font-size: 0.8rem; color: #475569; font-weight: 700;">
+                            Subtotal: ${cat.totalQty} items &nbsp;•&nbsp; Sales: <strong style="color: #0f172a;">₱${cat.totalGross.toFixed(2)}</strong> &nbsp;•&nbsp; Profit: <strong style="color: #10b981;">₱${cat.totalProfit.toFixed(2)}</strong>
+                        </span>
+                    </div>
+                </td>
+            </tr>
+        `;
+
+        // Sorted products in this category
+        const sortedItems = Object.entries(cat.items).sort((a, b) => a[0].localeCompare(b[0]));
+        sortedItems.forEach(([name, data]) => {
+            const tiers = Object.values(data.priceTiers).sort((a, b) => {
+                if (a.firstDate && b.firstDate) {
+                    const diff = new Date(a.firstDate) - new Date(b.firstDate);
+                    if (diff !== 0) return diff;
+                }
+                return a.price - b.price;
+            });
+
+            if (tiers.length <= 1) {
+                const singleTier = tiers[0] || { price: 0 };
+                p2Html += `
+                    <tr style="border-bottom: 1px solid #f1f5f9;">
+                        <td style="padding: 9px 8px 9px 28px; color: #1e293b; font-weight: 600;">
+                            <span style="color: #94a3b8; margin-right: 6px;">•</span> ${name}
+                        </td>
+                        <td style="padding: 9px 8px; text-align: center; color: #334155; font-weight: 700;">${data.qty} pcs</td>
+                        <td style="padding: 9px 8px; text-align: right; color: #64748b;">₱${singleTier.price.toFixed(2)}</td>
+                        <td style="padding: 9px 8px; text-align: right; font-weight: 800; color: #0f172a;">₱${data.gross.toFixed(2)}</td>
+                        <td style="padding: 9px 8px; text-align: right; font-weight: 800; color: #10b981;">₱${data.profit.toFixed(2)}</td>
+                    </tr>
+                `;
+            } else {
+                // Multi-tier price adjusted item
+                const minP = Math.min(...tiers.map(t => t.price));
+                const maxP = Math.max(...tiers.map(t => t.price));
+
+                p2Html += `
+                    <tr style="border-bottom: 1px dashed #cbd5e1; background: #fafbfc;">
+                        <td style="padding: 9px 8px 9px 28px; font-weight: 700; color: #0f172a;">
+                            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                <span>• ${name}</span>
+                                <span style="display: inline-flex; align-items: center; gap: 4px; font-size: 0.68rem; font-weight: 700; background: #fef3c7; color: #b45309; padding: 1px 6px; border-radius: 4px; border: 1px solid #fde68a;">
+                                    Price Adjusted (${tiers.length} rates)
+                                </span>
+                            </div>
+                        </td>
+                        <td style="padding: 9px 8px; text-align: center; font-weight: 800; color: #0f172a;">${data.qty} pcs</td>
+                        <td style="padding: 9px 8px; text-align: right; font-weight: 700; color: #64748b; font-size: 0.8rem;">
+                            ₱${minP.toFixed(2)} – ₱${maxP.toFixed(2)}
+                        </td>
+                        <td style="padding: 9px 8px; text-align: right; font-weight: 800; color: #0f172a;">₱${data.gross.toFixed(2)}</td>
+                        <td style="padding: 9px 8px; text-align: right; font-weight: 800; color: #10b981;">₱${data.profit.toFixed(2)}</td>
+                    </tr>
+                `;
+
+                tiers.forEach((tier, idx) => {
+                    const isLastTier = idx === tiers.length - 1;
+                    p2Html += `
+                        <tr style="border-bottom: ${isLastTier ? '1px solid #f1f5f9' : '1px dashed #f8fafc'}; background: #f8fafc;">
+                            <td style="padding: 5px 8px 5px 48px; color: #64748b; font-size: 0.8rem;">
+                                ↳ Sold @ <strong>₱${tier.price.toFixed(2)}</strong>
+                            </td>
+                            <td style="padding: 5px 8px; text-align: center; font-size: 0.8rem; color: #64748b;">${tier.qty} pcs</td>
+                            <td style="padding: 5px 8px; text-align: right; font-size: 0.8rem; color: #64748b;">₱${tier.price.toFixed(2)}</td>
+                            <td style="padding: 5px 8px; text-align: right; font-size: 0.8rem; font-weight: 700; color: #334155;">₱${tier.gross.toFixed(2)}</td>
+                            <td style="padding: 5px 8px; text-align: right; font-size: 0.8rem; font-weight: 700; color: #059669;">₱${tier.profit.toFixed(2)}</td>
+                        </tr>
+                    `;
+                });
+            }
+        });
+    });
+
+    page2Body.innerHTML = p2Html;
+    page2Container.style.display = p2Html.trim() ? 'block' : 'none';
 }
 
 async function generateReportEngine() {
@@ -3318,6 +3491,8 @@ async function generateReportEngine() {
             }
             categoriesToRender.sort((a, b) => a.name.localeCompare(b.name));
 
+            currentCategoriesData = categoriesToRender;
+
             let tableHtml = '';
             let grandTotalQty = 0;
             let grandTotalGross = 0;
@@ -3329,14 +3504,15 @@ async function generateReportEngine() {
                 grandTotalProfit += cat.totalProfit;
 
                 const catSafeId = cat.name.replace(/[^a-zA-Z0-9]/g, '_');
+                const isToggled = toggledReportCategories.has(catSafeId);
 
-                // Category Section Header Row with click-to-toggle
+                // Page 1: ONLY Category Summary Rows (Exact match to Image 1)
                 tableHtml += `
-                    <tr class="report-cat-header-row" onclick="toggleReportCategoryCollapse('${catSafeId}')" style="background: #f1f5f9; border-top: 2px solid #cbd5e1; border-bottom: 2px solid #cbd5e1; page-break-after: avoid; cursor: pointer; user-select: none;" title="Click to collapse / expand items">
+                    <tr class="report-cat-header-row" onclick="toggleReportCategory('${catSafeId}')" style="background: #f1f5f9; border-top: 2px solid #cbd5e1; border-bottom: 2px solid #cbd5e1; cursor: pointer; user-select: none;" title="Click to toggle item breakdown on Page 2">
                         <td colspan="5" style="padding: 10px 12px;">
                             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
                                 <span style="font-weight: 800; color: #0f172a; font-size: 0.92rem; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px;">
-                                    <i id="cat-chevron-${catSafeId}" class="fa-solid fa-chevron-down" style="color: #64748b; font-size: 0.75rem; transition: transform 0.2s;"></i>
+                                    <i id="cat-chevron-${catSafeId}" class="fa-solid ${isToggled ? 'fa-chevron-down' : 'fa-chevron-right'}" style="color: #64748b; font-size: 0.75rem;"></i>
                                     <i class="${cat.icon}" style="color: #64748b;"></i> ${cat.name}
                                     <span class="no-print" style="font-size: 0.72rem; color: #94a3b8; font-weight: 600;">(Click to toggle)</span>
                                 </span>
@@ -3347,71 +3523,6 @@ async function generateReportEngine() {
                         </td>
                     </tr>
                 `;
-
-                // Sorted products in this category
-                const sortedItems = Object.entries(cat.items).sort((a, b) => a[0].localeCompare(b[0]));
-                sortedItems.forEach(([name, data]) => {
-                    const tiers = Object.values(data.priceTiers).sort((a, b) => {
-                        if (a.firstDate && b.firstDate) {
-                            const diff = new Date(a.firstDate) - new Date(b.firstDate);
-                            if (diff !== 0) return diff;
-                        }
-                        return a.price - b.price;
-                    });
-
-                    if (tiers.length <= 1) {
-                        const singleTier = tiers[0] || { price: 0 };
-                        tableHtml += `
-                            <tr class="report-cat-item-${catSafeId}" style="border-bottom: 1px solid #f1f5f9;">
-                                <td style="padding: 9px 8px 9px 28px; color: #1e293b; font-weight: 600;">
-                                    <span style="color: #94a3b8; margin-right: 6px;">•</span> ${name}
-                                </td>
-                                <td style="padding: 9px 8px; text-align: center; color: #334155; font-weight: 700;">${data.qty} pcs</td>
-                                <td style="padding: 9px 8px; text-align: right; color: #64748b;">₱${singleTier.price.toFixed(2)}</td>
-                                <td style="padding: 9px 8px; text-align: right; font-weight: 800; color: #0f172a;">₱${data.gross.toFixed(2)}</td>
-                                <td style="padding: 9px 8px; text-align: right; font-weight: 800; color: #10b981;">₱${data.profit.toFixed(2)}</td>
-                            </tr>
-                        `;
-                    } else {
-                        // Multi-tier price adjusted item
-                        const minP = Math.min(...tiers.map(t => t.price));
-                        const maxP = Math.max(...tiers.map(t => t.price));
-
-                        tableHtml += `
-                            <tr class="report-cat-item-${catSafeId}" style="border-bottom: 1px dashed #cbd5e1; background: #fafbfc;">
-                                <td style="padding: 9px 8px 9px 28px; font-weight: 700; color: #0f172a;">
-                                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                                        <span>• ${name}</span>
-                                        <span style="display: inline-flex; align-items: center; gap: 4px; font-size: 0.68rem; font-weight: 700; background: #fef3c7; color: #b45309; padding: 1px 6px; border-radius: 4px; border: 1px solid #fde68a;">
-                                            Price Adjusted (${tiers.length} rates)
-                                        </span>
-                                    </div>
-                                </td>
-                                <td style="padding: 9px 8px; text-align: center; font-weight: 800; color: #0f172a;">${data.qty} pcs</td>
-                                <td style="padding: 9px 8px; text-align: right; font-weight: 700; color: #64748b; font-size: 0.8rem;">
-                                    ₱${minP.toFixed(2)} – ₱${maxP.toFixed(2)}
-                                </td>
-                                <td style="padding: 9px 8px; text-align: right; font-weight: 800; color: #0f172a;">₱${data.gross.toFixed(2)}</td>
-                                <td style="padding: 9px 8px; text-align: right; font-weight: 800; color: #10b981;">₱${data.profit.toFixed(2)}</td>
-                            </tr>
-                        `;
-
-                        tiers.forEach((tier, idx) => {
-                            const isLastTier = idx === tiers.length - 1;
-                            tableHtml += `
-                                <tr class="report-cat-item-${catSafeId}" style="border-bottom: ${isLastTier ? '1px solid #f1f5f9' : '1px dashed #f8fafc'}; background: #f8fafc;">
-                                    <td style="padding: 5px 8px 5px 48px; color: #64748b; font-size: 0.8rem;">
-                                        ↳ Sold @ <strong>₱${tier.price.toFixed(2)}</strong>
-                                    </td>
-                                    <td style="padding: 5px 8px; text-align: center; font-size: 0.8rem; color: #64748b;">${tier.qty} pcs</td>
-                                    <td style="padding: 5px 8px; text-align: right; font-size: 0.8rem; color: #64748b;">₱${tier.price.toFixed(2)}</td>
-                                    <td style="padding: 5px 8px; text-align: right; font-size: 0.8rem; font-weight: 700; color: #334155;">₱${tier.gross.toFixed(2)}</td>
-                                    <td style="padding: 5px 8px; text-align: right; font-size: 0.8rem; font-weight: 700; color: #059669;">₱${tier.profit.toFixed(2)}</td>
-                                </tr>
-                            `;
-                        });
-                    }
-                });
             });
 
             if (tableHtml === '') {
@@ -3427,10 +3538,15 @@ async function generateReportEngine() {
             document.getElementById('reportTotalProfit').innerText = `₱${grandTotalProfit.toFixed(2)}`;
             const margin = grandTotalGross > 0 ? (grandTotalProfit / grandTotalGross) * 100 : 0;
             document.getElementById('reportTotalMargin').innerText = `${margin.toFixed(2)}%`;
+
+            updateToggleAllButtonText();
+            renderReportPage2();
         }
 
         // --- 2. CASH COLLECTIONS REPORT TYPE (WITH CREDITOR REMAINING BALANCE & FILTER) ---
         else if (currentReportType === 'collections') {
+            const page2Container = document.getElementById('printReportAreaPage2');
+            if (page2Container) page2Container.style.display = 'none';
             const selectedCreditor = document.getElementById('reportCustomerFilter')?.value || 'ALL';
             const isIndividual = selectedCreditor !== 'ALL';
 

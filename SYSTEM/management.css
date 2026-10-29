@@ -2606,9 +2606,20 @@ td {
         color: #000000 !important;
     }
 
-    /* Ensure all category items are visible when printing */
-    tr[class*="report-cat-item-"] {
-        display: table-row !important;
+    /* Page 2 Item Breakdown sheet printing rules */
+    #printReportAreaPage2 {
+        border: none !important;
+        box-shadow: none !important;
+        padding: 20px !important;
+        margin: 0 auto !important;
+        max-width: 100% !important;
+        width: 100% !important;
+        page-break-before: always !important;
+        break-before: page !important;
+    }
+
+    #printReportAreaPage2[style*="display: none"] {
+        display: none !important;
     }
 }
 

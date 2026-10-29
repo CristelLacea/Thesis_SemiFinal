@@ -821,6 +821,9 @@
                 <label style="font-weight: 600; font-size: 0.85rem; color: #475569;">End:</label>
                 <input type="date" id="reportEndDate" onchange="generateReportEngine()" style="padding: 8px 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-weight: 600; color: #1e293b; outline: none; background: white;">
             </div>
+            <button type="button" id="btnToggleAllCategories" onclick="toggleAllReportCategories()" style="background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 10px 14px; border-radius: 10px; font-weight: 700; font-size: 0.82rem; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;" title="Expand or collapse all category item breakdowns for Page 2">
+                <i class="fa-solid fa-layer-group" style="color: #64748b;"></i> <span id="btnToggleAllCategoriesText">Expand All (Page 2)</span>
+            </button>
             <button onclick="window.print()" style="background: #10b981; color: white; padding: 10px 18px; border-radius: 10px; border: none; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15);">
                 <i class="fa-solid fa-print"></i> Print / Save PDF
             </button>
@@ -893,6 +896,50 @@
             <div style="text-align: center; border-top: 1px solid #cbd5e1; width: 200px; padding-top: 5px;">
                 <span style="color: #64748b; font-size: 0.8rem;">Authorized Signature</span>
             </div>
+        </div>
+    </div>
+
+    <!-- Paper Report Preview Sheet Container - Page 2 (Detailed Item Breakdown) -->
+    <div id="printReportAreaPage2" class="paper-report-sheet" style="display: none; background: white; border: 1px solid #cbd5e1; box-shadow: 0 10px 30px rgba(0,0,0,0.05); padding: 50px; border-radius: 8px; max-width: 850px; margin: 30px auto 0 auto; color: #1e293b; font-family: 'Segoe UI', system-ui, sans-serif;">
+        <!-- Header Section Page 2 -->
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 3px double #1e293b; padding-bottom: 18px; margin-bottom: 25px; gap: 20px;">
+            <div style="display: flex; align-items: center; flex-shrink: 0;">
+                <img src="LOGONEWEST_BLACK.png" alt="Logo" style="height: 85px; width: auto; object-fit: contain; margin-right: 18px;">
+                <div style="border-left: 2px solid #cbd5e1; padding-left: 18px; display: flex; flex-direction: column; justify-content: center;">
+                    <p style="font-size: 0.8rem; color: #1e293b; margin: 0; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; line-height: 1.35;">Convenience & Retail POS<br>Management System</p>
+                    <p style="font-size: 0.78rem; color: #64748b; margin: 4px 0 0 0; font-weight: 500;">Del Carmen Norte, Balilihan, Bohol</p>
+                </div>
+            </div>
+            <div style="text-align: right; display: flex; flex-direction: column; justify-content: center; align-items: flex-end; min-width: 260px; max-width: 55%;">
+                <h2 style="font-size: 1.2rem; font-weight: 800; color: #1e293b; margin: 0; text-transform: uppercase; letter-spacing: 0.5px; line-height: 1.2;">Sales Performance Report</h2>
+                <div style="font-size: 0.88rem; margin: 3px 0 1px 0; text-align: right; color: #2563eb; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Detailed Item Breakdown (Page 2)</div>
+                <p style="font-size: 0.8rem; color: #64748b; margin: 3px 0 0 0; font-weight: 500;"><strong>Period:</strong> <span id="reportPeriodTextPage2"></span></p>
+                <p style="font-size: 0.8rem; color: #64748b; margin: 2px 0 0 0; font-weight: 500;"><strong>Generated:</strong> <span id="reportGenTimePage2"></span></p>
+            </div>
+        </div>
+
+        <!-- Report Body Page 2 (Table of Toggled Category Item Breakdown) -->
+        <div style="margin-bottom: 30px;">
+            <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem;">
+                <thead>
+                    <tr style="border-bottom: 2px solid #0f172a; color: #0f172a; font-weight: bold;">
+                        <th style="padding: 10px 5px; width: 40%;">ITEM NAME</th>
+                        <th style="padding: 10px 5px; width: 15%; text-align: center;">ITEMS SOLD</th>
+                        <th style="padding: 10px 5px; width: 15%; text-align: right;">UNIT PRICE</th>
+                        <th style="padding: 10px 5px; width: 15%; text-align: right;">TOTAL SALES</th>
+                        <th style="padding: 10px 5px; width: 15%; text-align: right;">TOTAL PROFIT</th>
+                    </tr>
+                </thead>
+                <tbody id="reportTableBodyPage2">
+                    <!-- Dynamically populated rows for toggled categories -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Footer Note on Page 2 -->
+        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed #cbd5e1; padding-top: 15px; margin-top: 20px; font-size: 0.8rem; color: #94a3b8;">
+            <span>Weljo POS Official Records • End of Item Breakdown</span>
+            <span>Page 2</span>
         </div>
     </div>
 </section>
